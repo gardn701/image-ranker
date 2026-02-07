@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_file, Response, abort
+from flask import Flask, render_template, request, jsonify, send_file, Response, abort, render_template_string, url_for
 import os
 import random
 import itertools
@@ -42,6 +42,7 @@ current_directory = None
 image_pairs = []
 current_pair_index = 0
 last_shown_image = None
+context_data = None
 
 def get_image_paths(folder, timeout=None, start_time=None, get_progress=False):
     global comparisons_autosave_prefix
@@ -386,7 +387,7 @@ def get_progress():
 
 @app.route('/set_directory', methods=['POST'])
 def set_directory():
-    global IMAGE_FOLDER, current_directory, elo_ranking, image_pairs, current_pair_index, comparisons_since_autosave, excluded_images
+    global IMAGE_FOLDER, current_directory, elo_ranking, image_pairs, current_pair_index, comparisons_since_autosave, excluded_images, context_data
     
     try:
         rel_path = request.form["path"]
@@ -402,9 +403,25 @@ def set_directory():
             current_directory = directory  # Save the selected directory
             elo_ranking = TrueSkillRanking()  # Reset the ELO rankings
             excluded_images = {} # Reset excluded images
+            context_data = None # Reset context data
             initialize_image_pairs()
             current_pair_index = 0  # Reset the current pair index
             comparisons_since_autosave = 0  # Reset the autosave counter
+
+            # Load context data
+            context_json_path = os.path.join(directory, 'context.json')
+            context_txt_path = os.path.join(directory, 'context.txt')
+            if os.path.exists(context_json_path):
+                with open(context_json_path, 'r') as f:
+                    try:
+                        context_data = json.load(f)
+                    except json.JSONDecodeError:
+                        app.logger.error(f"Failed to decode {context_json_path}")
+                        context_data = {'error': 'Failed to decode context.json'}
+            elif os.path.exists(context_txt_path):
+                with open(context_txt_path, 'r') as f:
+                    context_data = f.read()
+
             if rel_autosave_path:
                 autosave_file = os.path.join(BASE_DIR, rel_autosave_path)
                 if os.path.exists(autosave_file):
@@ -570,6 +587,55 @@ def browse_directory():
         images_in_current_folder=total_image_count,
         autosave_progress_file=autosave_progress_file
     )
+
+
+@app.route("/context_exists")
+def context_exists():
+    global context_data
+    image_path = request.args.get("path")
+    if not image_path:
+        return jsonify({"exists": False})
+
+    if context_data is None:
+        return jsonify({"exists": False})
+
+    if isinstance(context_data, str):
+        return jsonify({"exists": True})
+
+    filename = os.path.basename(image_path)
+    if filename in context_data or 'default' in context_data:
+        return jsonify({"exists": True})
+
+    return jsonify({"exists": False})
+
+
+@app.route("/get_context")
+def get_context():
+    global context_data
+    image_path = request.args.get("path")
+    if not image_path:
+        abort(400, "Image path is required.")
+
+    if context_data is None:
+        abort(404, "Context file not found.")
+
+    if isinstance(context_data, str):
+        return context_data
+
+    if 'error' in context_data:
+        abort(500, context_data['error'])
+
+    filename = os.path.basename(image_path)
+    context_html = None
+    if filename in context_data:
+        context_html = context_data[filename]
+    elif 'default' in context_data:
+        context_html = context_data['default']
+
+    if context_html:
+        return render_template_string(context_html, url_for=url_for)
+    else:
+        abort(404, f"Context not found for {filename} and no default is set.")
 
 if __name__ == '__main__':
     # Set current_directory to IMAGE_FOLDER (absolute path) on startup

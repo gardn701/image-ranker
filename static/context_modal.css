@@ -1,0 +1,39 @@
+#contextModal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+}
+
+#contextModal .modal-content {
+    background: white;
+    width: 80%;
+    max-width: 800px;
+    height: 80vh;
+    margin: 5% auto;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+}
+
+#contextModal .modal-header {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#contextModal .modal-body {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+#contextModal .close-btn {
+    cursor: pointer;
+    font-size: 20px;
+    border: none;
+    background: none;
+}

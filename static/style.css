@@ -1297,6 +1297,10 @@ button:active {
         justify-content: center;
         margin: 2px 0;
     }
+
+    .shortcut {
+        display: none;
+    }
 }
 
 @media (hover: none) {

@@ -83,6 +83,37 @@ To use this feature, set the `EXCLUSION_REASONS_FILE` environment variable to th
 EXCLUSION_REASONS_FILE=/path/to/your/exclusion_reasons.json python app.py
 ```
 
+### Image Context
+
+You can provide context for your images by creating a `context.txt` or `context.json` file in the same directory as your images. If either of these files is present, a context button will appear for each image, allowing you to view the context in a modal.
+
+The content can be plain text or HTML, which will be rendered in the modal.
+
+#### `context.txt`
+
+If you use a `context.txt` file, its content will be displayed for all images in that folder.
+
+**Example `context.txt`:**
+```
+This is a general context for all images in this folder.
+It can even include <strong>HTML</strong> tags.
+```
+
+#### `context.json`
+
+For more specific context, you can use a `context.json` file. This file should contain a JSON object where the keys are the filenames of the images and the values are the context to be displayed.
+
+You can also provide a `default` key, which will be used as a fallback for any image that doesn't have its own specific context.
+
+**Example `context.json`:**
+```json
+{
+  "image1.jpg": "This is the context for image1.jpg.",
+  "image2.png": "<h1>Context for Image 2</h1><p>This image has a special context with HTML.</p>",
+  "default": "This is the default context for all other images."
+}
+```
+
 ---
 ## ❓ How It Works
 ### TrueSkill ELO

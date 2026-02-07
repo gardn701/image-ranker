@@ -14,6 +14,7 @@
     <title>Image Ranker</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='exclusion_modal.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='context_modal.css') }}">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
     <style>
         .material-symbols-rounded {
@@ -52,6 +53,9 @@
             <div class="buttons">
                 <div class="button-group">
                     <div class="action-buttons">
+                        <button id="context-image1-btn" onclick="openContextModal('image1')" class="major-icon-btn" title="Show context for this image" style="display: none;">
+                            <span class="material-symbols-rounded">topic</span>
+                        </button>
                         <button id="image1-btn" onclick="selectWinner('image1')">Image A is better <span class="shortcut">(Press 1 or left arrow)</span></button>
                         <button id="remove-image1-btn" onclick="removeImage(currentImages['image1'])" class="major-icon-btn" title="Remove Image A">
                             <span class="material-symbols-rounded">delete</span>
@@ -63,6 +67,9 @@
                 </button>
                 <div class="button-group">
                     <div class="action-buttons">
+                        <button id="context-image2-btn" onclick="openContextModal('image2')" class="major-icon-btn" title="Show context for this image" style="display: none;">
+                            <span class="material-symbols-rounded">topic</span>
+                        </button>
                         <button id="image2-btn" onclick="selectWinner('image2')">Image B is better <span class="shortcut">(Press 2 or right arrow)</span></button>
                         <button id="remove-image2-btn" onclick="removeImage(currentImages['image2'])" class="major-icon-btn" title="Remove Image B">
                             <span class="material-symbols-rounded">delete</span>
@@ -171,6 +178,8 @@
         </div>
     </div>
 
+    {% include 'context_modal.html' %}
+
     {% include 'exclusion_modal.html' %}
     
     <script>
@@ -223,10 +232,47 @@
                 document.getElementById('image1-name').textContent = `Image A: ${decodeURIComponent(data.image1.split('=').pop().split('/').pop())}`;
                 document.getElementById('image2-name').textContent = `Image B: ${decodeURIComponent(data.image2.split('=').pop().split('/').pop())}`;
                 updateProgress(data.progress);
+                checkContext();
             })
             .catch(error => {
                 console.error('Error loading images:', error);
             });
+        }
+
+        function openContextModal(image) {
+            const imagePath = currentImages[image];
+            fetch(`{{ url_for('get_context') }}?path=${imagePath}`)
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById('contextModalBody').innerHTML = data;
+                    document.body.classList.add('modal-open');
+                    document.getElementById('contextModal').style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error fetching context:', error);
+                });
+        }
+
+        function closeContextModal() {
+            document.body.classList.remove('modal-open');
+            document.getElementById('contextModal').style.display = 'none';
+        }
+
+        function checkContext() {
+            if (currentImages.image1) {
+                fetch(`{{ url_for('context_exists') }}?path=${currentImages.image1}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('context-image1-btn').style.display = data.exists ? 'flex' : 'none';
+                    });
+            }
+            if (currentImages.image2) {
+                fetch(`{{ url_for('context_exists') }}?path=${currentImages.image2}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('context-image2-btn').style.display = data.exists ? 'flex' : 'none';
+                    });
+            }
         }
         
         let excludeDownvoted = false;

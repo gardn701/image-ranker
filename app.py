@@ -44,6 +44,27 @@ current_pair_index = 0
 last_shown_image = None
 context_data = None
 
+
+def resolve_path_within_base_dir(path):
+    abs_path = os.path.normpath(os.path.join(BASE_DIR, path))
+    if not abs_path.startswith(BASE_DIR):
+        abort(403)
+    return abs_path
+
+
+def get_exclusions_file_path(autosave_file):
+    autosave_date = os.path.basename(autosave_file).split("_")[-1].replace(".csv", "")
+    return os.path.join(os.path.dirname(autosave_file), f'exclusions_autosave_{autosave_date}.json')
+
+
+def load_exclusions_from_autosave(autosave_file):
+    exclusions_file_path = get_exclusions_file_path(autosave_file)
+    if not os.path.exists(exclusions_file_path):
+        return {}
+
+    with open(exclusions_file_path, 'r') as f:
+        return json.load(f)
+
 def get_image_paths(folder, timeout=None, start_time=None, get_progress=False):
     global comparisons_autosave_prefix
     image_paths = []
@@ -393,20 +414,14 @@ def set_directory():
         rel_path = request.form["path"]
         rel_autosave_path = request.form["autosaveFile"]
 
-        directory = os.path.join(BASE_DIR, rel_path)
+        directory = resolve_path_within_base_dir(rel_path)
 
         if directory:
-            if not directory.startswith(BASE_DIR):
-                abort(403)
-
             IMAGE_FOLDER = directory
             current_directory = directory  # Save the selected directory
             elo_ranking = TrueSkillRanking()  # Reset the ELO rankings
             excluded_images = {} # Reset excluded images
             context_data = None # Reset context data
-            initialize_image_pairs()
-            current_pair_index = 0  # Reset the current pair index
-            comparisons_since_autosave = 0  # Reset the autosave counter
 
             # Load context data
             context_json_path = os.path.join(directory, 'context.json')
@@ -422,16 +437,19 @@ def set_directory():
                 with open(context_txt_path, 'r') as f:
                     context_data = f.read()
 
+            autosave_file = None
             if rel_autosave_path:
-                autosave_file = os.path.join(BASE_DIR, rel_autosave_path)
+                autosave_file = resolve_path_within_base_dir(rel_autosave_path)
                 if os.path.exists(autosave_file):
-                    with open(autosave_file, 'rb') as file:
-                        import_comparison_history_file(file, True)
-                
-                exclusions_file_path = os.path.join(os.path.dirname(autosave_file), f'exclusions_autosave_{os.path.basename(autosave_file).split("_")[-1].replace(".csv", "")}.json')
-                if os.path.exists(exclusions_file_path):
-                    with open(exclusions_file_path, 'r') as f:
-                        excluded_images = json.load(f)
+                    excluded_images = load_exclusions_from_autosave(autosave_file)
+
+            initialize_image_pairs()
+            current_pair_index = 0  # Reset the current pair index
+            comparisons_since_autosave = 0  # Reset the autosave counter
+
+            if autosave_file and os.path.exists(autosave_file):
+                with open(autosave_file, 'rb') as file:
+                    import_comparison_history_file(file, True)
 
             return jsonify({'success': True, 'directory': directory})
         else:
@@ -562,9 +580,7 @@ def browse_directory():
     else:
         BASE_DIR = os.environ['BASE_DIR']
     rel_path = request.args.get("path", "")
-    abs_path = os.path.normpath(os.path.join(BASE_DIR, rel_path))
-    if not abs_path.startswith(BASE_DIR):
-        abort(403)
+    abs_path = resolve_path_within_base_dir(rel_path)
     all_files = os.listdir(abs_path)
     folders = [
         d for d in all_files

@@ -1,4 +1,5 @@
 import csv
+import io
 import json
 import os
 import tempfile
@@ -64,6 +65,51 @@ class ResumeAutosaveTest(unittest.TestCase):
             {self.image_paths[2]: "duplicate"},
         )
 
+        remaining_images = {image for pair in image_ranker_app.image_pairs for image in pair}
+        self.assertNotIn(self.image_paths[2], remaining_images)
+
+    def test_set_directory_loads_autosave_rankings(self):
+        response = self.client.post(
+            "/set_directory",
+            data={
+                "path": "dataset",
+                "autosaveFile": "dataset/comparisons_autosave_2026-03-18.csv",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(image_ranker_app.elo_ranking.comparison_history), 1)
+        rankings = image_ranker_app.elo_ranking.get_rankings()
+        self.assertEqual(len(rankings), 2)
+        self.assertEqual(rankings[0][0], self.image_paths[0])
+        self.assertEqual(rankings[1][0], self.image_paths[1])
+
+    def test_manual_import_autosave_rebuilds_session_state(self):
+        self.client.post(
+            "/set_directory",
+            data={"path": "dataset", "autosaveFile": ""},
+        )
+
+        image_ranker_app.excluded_images = {"stale.jpg": "old"}
+        image_ranker_app.initialize_image_pairs()
+
+        with open(self.autosave_file, "rb") as f:
+            response = self.client.post(
+                "/import_comparison_history",
+                data={
+                    "file": (io.BytesIO(f.read()), os.path.basename(self.autosave_file)),
+                    "append": "false",
+                },
+                content_type="multipart/form-data",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["success"])
+        self.assertEqual(len(image_ranker_app.elo_ranking.comparison_history), 1)
+        self.assertEqual(
+            image_ranker_app.excluded_images,
+            {self.image_paths[2]: "duplicate"},
+        )
         remaining_images = {image for pair in image_ranker_app.image_pairs for image in pair}
         self.assertNotIn(self.image_paths[2], remaining_images)
 

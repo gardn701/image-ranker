@@ -65,6 +65,51 @@ def load_exclusions_from_autosave(autosave_file):
     with open(exclusions_file_path, 'r') as f:
         return json.load(f)
 
+
+def reset_ranking_session(load_context=False):
+    global elo_ranking, excluded_images, image_pairs, current_pair_index, comparisons_since_autosave, context_data
+
+    elo_ranking = TrueSkillRanking()
+    excluded_images = {}
+    image_pairs = []
+    current_pair_index = 0
+    comparisons_since_autosave = 0
+    if not load_context:
+        context_data = None
+
+
+def load_context_for_directory(directory):
+    global context_data
+
+    context_data = None
+    context_json_path = os.path.join(directory, 'context.json')
+    context_txt_path = os.path.join(directory, 'context.txt')
+    if os.path.exists(context_json_path):
+        with open(context_json_path, 'r') as f:
+            try:
+                context_data = json.load(f)
+            except json.JSONDecodeError:
+                app.logger.error(f"Failed to decode {context_json_path}")
+                context_data = {'error': 'Failed to decode context.json'}
+    elif os.path.exists(context_txt_path):
+        with open(context_txt_path, 'r') as f:
+            context_data = f.read()
+
+
+def maybe_load_current_directory_autosave_exclusions(filename):
+    global excluded_images
+
+    if not current_directory or not filename:
+        return
+
+    basename = os.path.basename(filename)
+    if not basename.startswith(comparisons_autosave_prefix):
+        return
+
+    autosave_file = os.path.join(current_directory, basename)
+    if os.path.exists(autosave_file):
+        excluded_images = load_exclusions_from_autosave(autosave_file)
+
 def get_image_paths(folder, timeout=None, start_time=None, get_progress=False):
     global comparisons_autosave_prefix
     image_paths = []
@@ -156,12 +201,17 @@ def initialize_image_pairs(a=False):
 def import_comparison_history_file(file, append):
     global image_pairs
 
-    reader = csv.reader(file.read().decode('utf-8').splitlines())
+    if hasattr(file, 'seek'):
+        file.seek(0)
+
+    reader = csv.reader(file.read().decode('utf-8-sig').splitlines())
     next(reader)  # Skip header row
 
     if not append:
-        elo_ranking.comparison_history = []
-        elo_ranking.recalculate_rankings()
+        reset_ranking_session(load_context=True)
+        if current_directory:
+            maybe_load_current_directory_autosave_exclusions(getattr(file, 'filename', None))
+            initialize_image_pairs()
 
     pairs_to_add = set()
     losers_to_remove = set()
@@ -419,23 +469,8 @@ def set_directory():
         if directory:
             IMAGE_FOLDER = directory
             current_directory = directory  # Save the selected directory
-            elo_ranking = TrueSkillRanking()  # Reset the ELO rankings
-            excluded_images = {} # Reset excluded images
-            context_data = None # Reset context data
-
-            # Load context data
-            context_json_path = os.path.join(directory, 'context.json')
-            context_txt_path = os.path.join(directory, 'context.txt')
-            if os.path.exists(context_json_path):
-                with open(context_json_path, 'r') as f:
-                    try:
-                        context_data = json.load(f)
-                    except json.JSONDecodeError:
-                        app.logger.error(f"Failed to decode {context_json_path}")
-                        context_data = {'error': 'Failed to decode context.json'}
-            elif os.path.exists(context_txt_path):
-                with open(context_txt_path, 'r') as f:
-                    context_data = f.read()
+            reset_ranking_session()
+            load_context_for_directory(directory)
 
             autosave_file = None
             if rel_autosave_path:
@@ -444,8 +479,6 @@ def set_directory():
                     excluded_images = load_exclusions_from_autosave(autosave_file)
 
             initialize_image_pairs()
-            current_pair_index = 0  # Reset the current pair index
-            comparisons_since_autosave = 0  # Reset the autosave counter
 
             if autosave_file and os.path.exists(autosave_file):
                 with open(autosave_file, 'rb') as file:

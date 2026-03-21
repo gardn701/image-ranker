@@ -43,6 +43,88 @@ image_pairs = []
 current_pair_index = 0
 last_shown_image = None
 context_data = None
+comparisons_since_autosave = 0
+
+
+def resolve_path_within_base_dir(path):
+    if BASE_DIR is None:
+        abort(500, "BASE_DIR not configured")
+
+    base_abs = os.path.abspath(BASE_DIR)
+    target_abs = os.path.abspath(os.path.join(base_abs, path))
+    try:
+        if os.path.commonpath([base_abs, target_abs]) != base_abs:
+            abort(403)
+    except ValueError:
+        abort(403)
+
+    return target_abs
+
+
+def get_exclusions_file_path(autosave_file):
+    autosave_date = os.path.basename(autosave_file).split("_")[-1].replace(".csv", "")
+    return os.path.join(os.path.dirname(autosave_file), f'exclusions_autosave_{autosave_date}.json')
+
+
+def load_exclusions_from_autosave(autosave_file):
+    exclusions_file_path = get_exclusions_file_path(autosave_file)
+    if not os.path.exists(exclusions_file_path):
+        return {}
+
+    try:
+        with open(exclusions_file_path, 'r') as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        app.logger.error(f"Failed to load exclusions file {exclusions_file_path}: {e}")
+        return {}
+
+
+def reset_ranking_session(load_context=False):
+    global elo_ranking, excluded_images, image_pairs, current_pair_index, comparisons_since_autosave, context_data
+
+    elo_ranking = TrueSkillRanking()
+    excluded_images = {}
+    image_pairs = []
+    current_pair_index = 0
+    comparisons_since_autosave = 0
+    if not load_context:
+        context_data = None
+
+
+def load_context_for_directory(directory):
+    global context_data
+
+    context_data = None
+    context_json_path = os.path.join(directory, 'context.json')
+    context_txt_path = os.path.join(directory, 'context.txt')
+    if os.path.exists(context_json_path):
+        with open(context_json_path, 'r') as f:
+            try:
+                context_data = json.load(f)
+            except json.JSONDecodeError:
+                app.logger.error(f"Failed to decode {context_json_path}")
+                context_data = {'error': 'Failed to decode context.json'}
+    elif os.path.exists(context_txt_path):
+        with open(context_txt_path, 'r') as f:
+            context_data = f.read()
+
+
+def maybe_load_current_directory_autosave_exclusions(filename):
+    global excluded_images
+
+    if not current_directory or not filename:
+        return False
+
+    basename = os.path.basename(filename)
+    if not basename.startswith(comparisons_autosave_prefix):
+        return False
+
+    autosave_file = os.path.join(current_directory, basename)
+    if os.path.exists(autosave_file):
+        excluded_images = load_exclusions_from_autosave(autosave_file)
+        return True
+
+    return False
 
 def get_image_paths(folder, timeout=None, start_time=None, get_progress=False):
     global comparisons_autosave_prefix
@@ -132,20 +214,46 @@ def initialize_image_pairs(a=False):
     current_pair_index = 0
 
 
-def import_comparison_history_file(file, append):
-    global image_pairs
+def parse_comparison_history_rows(file):
+    if hasattr(file, 'seek'):
+        file.seek(0)
 
-    reader = csv.reader(file.read().decode('utf-8').splitlines())
-    next(reader)  # Skip header row
+    rows = list(csv.reader(file.read().decode('utf-8-sig').splitlines()))
+    if not rows:
+        raise ValueError(
+            "The selected file is empty. Import comparisons.csv or comparisons_autosave_YYYY-MM-DD.csv."
+        )
+
+    header = [column.strip() for column in rows[0]]
+    if header != ['Winner', 'Loser']:
+        raise ValueError(
+            "Import comparisons.csv or comparisons_autosave_YYYY-MM-DD.csv. "
+            "Ranking CSV files and exclusions JSON files cannot restore a session."
+        )
+
+    return rows[1:]
+
+
+def import_comparison_history_file(file, append):
+    global image_pairs, excluded_images
+
+    rows = parse_comparison_history_rows(file)
 
     if not append:
-        elo_ranking.comparison_history = []
-        elo_ranking.recalculate_rankings()
+        preserved_exclusions = excluded_images.copy()
+        reset_ranking_session(load_context=True)
+        if current_directory:
+            restored_autosave_exclusions = maybe_load_current_directory_autosave_exclusions(
+                getattr(file, 'filename', None)
+            )
+            if not restored_autosave_exclusions:
+                excluded_images = preserved_exclusions
+            initialize_image_pairs()
 
     pairs_to_add = set()
     losers_to_remove = set()
     pairs_to_remove = set()
-    for row in reader:
+    for row in rows:
         winner, loser = row
         if winner == 'None':  # Handle cases where winner is None
             losers_to_remove.add(loser)
@@ -391,51 +499,34 @@ def set_directory():
     
     try:
         rel_path = request.form["path"]
-        rel_autosave_path = request.form["autosaveFile"]
+        rel_autosave_path = request.form.get("autosaveFile", "")
 
-        directory = os.path.join(BASE_DIR, rel_path)
+        directory = resolve_path_within_base_dir(rel_path)
 
         if directory:
-            if not directory.startswith(BASE_DIR):
-                abort(403)
-
             IMAGE_FOLDER = directory
             current_directory = directory  # Save the selected directory
-            elo_ranking = TrueSkillRanking()  # Reset the ELO rankings
-            excluded_images = {} # Reset excluded images
-            context_data = None # Reset context data
-            initialize_image_pairs()
-            current_pair_index = 0  # Reset the current pair index
-            comparisons_since_autosave = 0  # Reset the autosave counter
+            reset_ranking_session()
+            load_context_for_directory(directory)
 
-            # Load context data
-            context_json_path = os.path.join(directory, 'context.json')
-            context_txt_path = os.path.join(directory, 'context.txt')
-            if os.path.exists(context_json_path):
-                with open(context_json_path, 'r') as f:
-                    try:
-                        context_data = json.load(f)
-                    except json.JSONDecodeError:
-                        app.logger.error(f"Failed to decode {context_json_path}")
-                        context_data = {'error': 'Failed to decode context.json'}
-            elif os.path.exists(context_txt_path):
-                with open(context_txt_path, 'r') as f:
-                    context_data = f.read()
-
+            autosave_file = None
             if rel_autosave_path:
-                autosave_file = os.path.join(BASE_DIR, rel_autosave_path)
+                autosave_file = resolve_path_within_base_dir(rel_autosave_path)
                 if os.path.exists(autosave_file):
-                    with open(autosave_file, 'rb') as file:
-                        import_comparison_history_file(file, True)
-                
-                exclusions_file_path = os.path.join(os.path.dirname(autosave_file), f'exclusions_autosave_{os.path.basename(autosave_file).split("_")[-1].replace(".csv", "")}.json')
-                if os.path.exists(exclusions_file_path):
-                    with open(exclusions_file_path, 'r') as f:
-                        excluded_images = json.load(f)
+                    excluded_images = load_exclusions_from_autosave(autosave_file)
+
+            initialize_image_pairs()
+
+            if autosave_file and os.path.exists(autosave_file):
+                with open(autosave_file, 'rb') as file:
+                    import_comparison_history_file(file, True)
 
             return jsonify({'success': True, 'directory': directory})
         else:
             return jsonify({'success': False, 'error': 'No directory selected'})
+    except ValueError as e:
+        app.logger.error(f"Error in set_directory: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         app.logger.error(f"Error in set_directory: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -521,8 +612,11 @@ def import_comparison_history():
     file = request.files['file']
     append = request.form.get('append', 'false') == 'true'
 
-    import_comparison_history_file(file, append)
-    return jsonify({'success': True})
+    try:
+        import_comparison_history_file(file, append)
+        return jsonify({'success': True})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/get_exclusion_reasons')
 def get_exclusion_reasons():
@@ -562,9 +656,7 @@ def browse_directory():
     else:
         BASE_DIR = os.environ['BASE_DIR']
     rel_path = request.args.get("path", "")
-    abs_path = os.path.normpath(os.path.join(BASE_DIR, rel_path))
-    if not abs_path.startswith(BASE_DIR):
-        abort(403)
+    abs_path = resolve_path_within_base_dir(rel_path)
     all_files = os.listdir(abs_path)
     folders = [
         d for d in all_files
@@ -645,5 +737,4 @@ if __name__ == '__main__':
     else:
         current_directory = IMAGE_FOLDER
     initialize_image_pairs()
-    comparisons_since_autosave = 0
     app.run(debug=False, threaded=True)

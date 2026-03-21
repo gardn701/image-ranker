@@ -92,11 +92,14 @@
                     <span class="material-symbols-rounded">upload</span>
                     Select Local Directory
                 </button>
-                <button id="import-comparison-history-btn" class="major-icon-btn" title="Import previous comparisons to continue a ranking session.">
+                <button id="import-comparison-history-btn" class="major-icon-btn" title="Import comparisons.csv or comparisons_autosave_YYYY-MM-DD.csv. Use Select Local Directory to resume a full autosave session with exclusions.">
                     <span class="material-symbols-rounded">history</span>
                 </button>
             </div>
             <div id="currentDirectory" class="current-directory">Not selected</div>
+            <div class="current-directory" style="font-size: 0.85rem; opacity: 0.8;">
+                Import uses <code>comparisons.csv</code> or <code>comparisons_autosave_YYYY-MM-DD.csv</code>. The rankings CSV is only a snapshot.
+            </div>
         </div>
 
         <!-- RIGHT -->
@@ -111,10 +114,10 @@
                 <button id="auto-shuffle-btn" class="major-icon-btn" title="Auto-shuffle every three comparisons.">
                     <span class="material-symbols-rounded">category</span>
                 </button>
-                <button id="export-comparisons-btn" class="major-icon-btn" title="Export the current comparison history to a CSV file.">
+                <button id="export-comparisons-btn" class="major-icon-btn" title="Export the comparison-history CSV used for later import or resume.">
                     <span class="material-symbols-rounded">download</span>
                 </button>
-                <button id="exportRankingsBtn" class="major-icon-btn" title="Export the current rankings to a CSV file.">
+                <button id="exportRankingsBtn" class="major-icon-btn" title="Export a rankings snapshot. This file is not used to restore a session.">
                     <span class="material-symbols-rounded">save</span>
                 </button>
             </div>
@@ -613,9 +616,12 @@
         document.getElementById('import-comparison-history-btn').addEventListener('click', function() {
             const fileInput = document.createElement('input');
             fileInput.type = 'file';
-            fileInput.accept = 'text/csv';
+            fileInput.accept = '.csv,text/csv';
             fileInput.addEventListener('change', function() {
                 const file = fileInput.files[0];
+                if (!file) {
+                    return;
+                }
                 const formData = new FormData();
                 formData.append('file', file);
                 
@@ -626,15 +632,26 @@
                     method: 'POST',
                     body: formData
                 })
-                .then(response => response.json())
+                .then(response => {
+                    return response.json().then(data => {
+                        if (!response.ok) {
+                            throw new Error(data.error || 'Error importing comparison history.');
+                        }
+                        return data;
+                    });
+                })
                 .then(data => {
                     if (data.success) {
                         alert('Comparison history imported successfully!');
                         updateRankings(); // Update the ranking display
                         loadImages(); // Update the progress display
                     } else {
-                        alert('Error importing comparison history!');
+                        alert(data.error || 'Error importing comparison history!');
                     }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert(error.message);
                 });
             });
             fileInput.click();

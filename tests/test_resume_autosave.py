@@ -113,6 +113,40 @@ class ResumeAutosaveTest(unittest.TestCase):
         remaining_images = {image for pair in image_ranker_app.image_pairs for image in pair}
         self.assertNotIn(self.image_paths[2], remaining_images)
 
+    def test_manual_import_non_autosave_preserves_existing_exclusions(self):
+        self.client.post(
+            "/set_directory",
+            data={"path": "dataset", "autosaveFile": ""},
+        )
+
+        image_ranker_app.excluded_images = {self.image_paths[2]: "duplicate"}
+        image_ranker_app.initialize_image_pairs()
+
+        exported_comparisons_text = io.StringIO()
+        writer = csv.writer(exported_comparisons_text)
+        writer.writerow(["Winner", "Loser"])
+        writer.writerow([self.image_paths[0], self.image_paths[1]])
+        writer.writerow([self.image_paths[1], self.image_paths[0]])
+        exported_comparisons = io.BytesIO(exported_comparisons_text.getvalue().encode("utf-8"))
+
+        response = self.client.post(
+            "/import_comparison_history",
+            data={
+                "file": (exported_comparisons, "comparisons.csv"),
+                "append": "false",
+            },
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["success"])
+        self.assertEqual(
+            image_ranker_app.excluded_images,
+            {self.image_paths[2]: "duplicate"},
+        )
+        remaining_images = {image for pair in image_ranker_app.image_pairs for image in pair}
+        self.assertNotIn(self.image_paths[2], remaining_images)
+
 
 if __name__ == "__main__":
     unittest.main()

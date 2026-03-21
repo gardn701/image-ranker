@@ -100,15 +100,18 @@ def maybe_load_current_directory_autosave_exclusions(filename):
     global excluded_images
 
     if not current_directory or not filename:
-        return
+        return False
 
     basename = os.path.basename(filename)
     if not basename.startswith(comparisons_autosave_prefix):
-        return
+        return False
 
     autosave_file = os.path.join(current_directory, basename)
     if os.path.exists(autosave_file):
         excluded_images = load_exclusions_from_autosave(autosave_file)
+        return True
+
+    return False
 
 def get_image_paths(folder, timeout=None, start_time=None, get_progress=False):
     global comparisons_autosave_prefix
@@ -199,7 +202,7 @@ def initialize_image_pairs(a=False):
 
 
 def import_comparison_history_file(file, append):
-    global image_pairs
+    global image_pairs, excluded_images
 
     if hasattr(file, 'seek'):
         file.seek(0)
@@ -208,9 +211,14 @@ def import_comparison_history_file(file, append):
     next(reader)  # Skip header row
 
     if not append:
+        preserved_exclusions = excluded_images.copy()
         reset_ranking_session(load_context=True)
         if current_directory:
-            maybe_load_current_directory_autosave_exclusions(getattr(file, 'filename', None))
+            restored_autosave_exclusions = maybe_load_current_directory_autosave_exclusions(
+                getattr(file, 'filename', None)
+            )
+            if not restored_autosave_exclusions:
+                excluded_images = preserved_exclusions
             initialize_image_pairs()
 
     pairs_to_add = set()

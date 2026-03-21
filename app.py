@@ -214,14 +214,30 @@ def initialize_image_pairs(a=False):
     current_pair_index = 0
 
 
-def import_comparison_history_file(file, append):
-    global image_pairs, excluded_images
-
+def parse_comparison_history_rows(file):
     if hasattr(file, 'seek'):
         file.seek(0)
 
-    reader = csv.reader(file.read().decode('utf-8-sig').splitlines())
-    next(reader)  # Skip header row
+    rows = list(csv.reader(file.read().decode('utf-8-sig').splitlines()))
+    if not rows:
+        raise ValueError(
+            "The selected file is empty. Import comparisons.csv or comparisons_autosave_YYYY-MM-DD.csv."
+        )
+
+    header = [column.strip() for column in rows[0]]
+    if header != ['Winner', 'Loser']:
+        raise ValueError(
+            "Import comparisons.csv or comparisons_autosave_YYYY-MM-DD.csv. "
+            "Ranking CSV files and exclusions JSON files cannot restore a session."
+        )
+
+    return rows[1:]
+
+
+def import_comparison_history_file(file, append):
+    global image_pairs, excluded_images
+
+    rows = parse_comparison_history_rows(file)
 
     if not append:
         preserved_exclusions = excluded_images.copy()
@@ -237,7 +253,7 @@ def import_comparison_history_file(file, append):
     pairs_to_add = set()
     losers_to_remove = set()
     pairs_to_remove = set()
-    for row in reader:
+    for row in rows:
         winner, loser = row
         if winner == 'None':  # Handle cases where winner is None
             losers_to_remove.add(loser)
@@ -508,6 +524,9 @@ def set_directory():
             return jsonify({'success': True, 'directory': directory})
         else:
             return jsonify({'success': False, 'error': 'No directory selected'})
+    except ValueError as e:
+        app.logger.error(f"Error in set_directory: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         app.logger.error(f"Error in set_directory: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -593,8 +612,11 @@ def import_comparison_history():
     file = request.files['file']
     append = request.form.get('append', 'false') == 'true'
 
-    import_comparison_history_file(file, append)
-    return jsonify({'success': True})
+    try:
+        import_comparison_history_file(file, append)
+        return jsonify({'success': True})
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/get_exclusion_reasons')
 def get_exclusion_reasons():

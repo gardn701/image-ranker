@@ -105,6 +105,24 @@ class ResumeAutosaveTest(unittest.TestCase):
             {},
         )
 
+    def test_import_comparison_history_rejects_rankings_csv(self):
+        rankings_csv = io.BytesIO(
+            b"Image,ELO,Uncertainty,Upvotes,Downvotes\nimg_a,1,2,3,4\n"
+        )
+
+        response = self.client.post(
+            "/import_comparison_history",
+            data={
+                "file": (rankings_csv, "image_rankings.csv"),
+                "append": "false",
+            },
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.get_json()["success"])
+        self.assertIn("comparisons.csv", response.get_json()["error"])
+
     def test_manual_import_autosave_rebuilds_session_state(self):
         self.client.post(
             "/set_directory",

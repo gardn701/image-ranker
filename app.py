@@ -12,6 +12,7 @@ from datetime import datetime
 import logging
 import json
 import sys
+import subprocess
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -121,6 +122,22 @@ def describe_path_access_error(path, error):
             'Grant access to your terminal app in System Settings > Privacy & Security > Files and Folders, then retry.'
         )
     return base_message
+
+
+@app.route('/open_macos_privacy_settings', methods=['POST'])
+def open_macos_privacy_settings():
+    if sys.platform != 'darwin':
+        return jsonify({'success': False, 'error': 'This action is only available on macOS.'}), 400
+
+    try:
+        subprocess.run(
+            ['open', 'x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders'],
+            check=True,
+        )
+        return jsonify({'success': True})
+    except Exception as e:
+        app.logger.error(f"Failed to open macOS privacy settings: {e}")
+        return jsonify({'success': False, 'error': 'Failed to open macOS privacy settings.'}), 500
 
 def get_image_paths(folder, timeout=None, start_time=None, get_progress=False):
     global comparisons_autosave_prefix

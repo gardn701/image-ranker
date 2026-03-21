@@ -113,6 +113,12 @@ input:disabled + .slider { background-color: #e0e0e0; cursor: not-allowed; }
     background: #fff0f0;
     color: #8a1c1c;
     line-height: 1.4;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.browser-error-btn {
+    align-self: flex-start;
 }
 .import-toggle-container {
     display: flex;

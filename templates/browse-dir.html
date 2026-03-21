@@ -43,7 +43,8 @@
 </div>
 {% if error_message %}
   <div class="browser-error">
-    {{ error_message }}
+    <div>{{ error_message }}</div>
+    <button class="main-btn browser-error-btn" onclick="openMacPrivacySettings()">Open macOS Privacy Settings</button>
   </div>
 {% endif %}
 <ul>
@@ -114,6 +115,21 @@
       { selectedFolder: path, autosaveProgressFile: '' },
       "*"
     )
+  }
+
+  function openMacPrivacySettings() {
+    fetch("{{ url_for('open_macos_privacy_settings') }}", {
+      method: "POST"
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (!data.success) {
+          alert(data.error || "Failed to open macOS privacy settings.")
+        }
+      })
+      .catch(() => {
+        alert("Failed to open macOS privacy settings.")
+      })
   }
 </script>
 </body>

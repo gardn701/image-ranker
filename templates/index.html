@@ -96,11 +96,6 @@
                     <span class="material-symbols-rounded">history</span>
                 </button>
             </div>
-            <div id="currentDirectory" class="current-directory">Not selected</div>
-            <div id="directoryStatus" class="directory-status info">Select a folder with at least 2 supported images to begin.</div>
-            <div class="current-directory" style="font-size: 0.85rem; opacity: 0.8;">
-                Import uses <code>comparisons.csv</code> or <code>comparisons_autosave_YYYY-MM-DD.csv</code>. The rankings CSV is only a snapshot.
-            </div>
         </div>
 
         <!-- RIGHT -->
@@ -202,12 +197,6 @@
                 });
         }
 
-        function setDirectoryStatus(message, tone = 'info') {
-            const statusEl = document.getElementById('directoryStatus');
-            statusEl.textContent = message;
-            statusEl.className = `directory-status ${tone}`;
-        }
-
         function clearComparisonView() {
             currentImages = {};
             document.getElementById('image1').src = '';
@@ -230,14 +219,6 @@
                     } else {
                         updateProgress({ current: 0, total: 0 });
                     }
-                    const toneMap = {
-                        completed: 'success',
-                        no_directory: 'info',
-                        empty: 'warning',
-                        insufficient: 'warning'
-                    };
-                    const tone = toneMap[data.state] || 'info';
-                    setDirectoryStatus(data.message, tone);
                     return;
                 }
                 console.log('Received image data:', data);
@@ -249,12 +230,10 @@
                 document.getElementById('image1-name').textContent = `Image A: ${decodeURIComponent(data.image1.split('=').pop().split('/').pop())}`;
                 document.getElementById('image2-name').textContent = `Image B: ${decodeURIComponent(data.image2.split('=').pop().split('/').pop())}`;
                 updateProgress(data.progress);
-                setDirectoryStatus('Ranking in progress.', 'success');
                 checkContext();
             })
             .catch(error => {
                 console.error('Error loading images:', error);
-                setDirectoryStatus('Failed to load images for the selected folder.', 'error');
             });
         }
 
@@ -540,47 +519,19 @@
                     document.getElementById('progress-text').textContent = 'Progress: 0 / 0 comparisons';
                     loadImages();
                     updateRankings();
-                    // Update the current directory display
-                    document.getElementById('currentDirectory').textContent = 'Image Directory: ' + data.directory;
-                    setDirectoryStatus(data.message, data.state === 'ready' ? 'success' : 'warning');
                 } else {
                     throw new Error(data.error || 'Unknown error occurred');
                 }
             })
             .catch(error => {
                 const message = error.error || error.message || 'Unable to open the selected directory.';
-                setDirectoryStatus(message, 'error');
+                alert(message);
             });
         }
         
         document.getElementById('selectDirectoryBtn').addEventListener('click', function() {
             openModal();
         });
-        
-        // Function to load the current directory on page load
-        function loadCurrentDirectory() {
-            fetch('{{ url_for('get_current_directory') }}',)
-            .then(response => response.json())
-            .then(data => {
-                if (data.directory) {
-                    document.getElementById('currentDirectory').textContent = 'Image Directory: ' + data.directory;
-                } else {
-                    document.getElementById('currentDirectory').textContent = 'Image Directory: Not selected';
-                }
-                if (data.message) {
-                    const tone = data.state === 'ready' ? 'success' : 'info';
-                    setDirectoryStatus(data.message, tone);
-                }
-            })
-            .catch(error => {
-                console.error('Error loading current directory:', error);
-                document.getElementById('currentDirectory').textContent = 'Image Directory: Error loading';
-                setDirectoryStatus('Could not load the current directory state.', 'error');
-            });
-        }
-        
-        // Call the function when the page loads
-        window.addEventListener('load', loadCurrentDirectory);
         
         document.getElementById('exportRankingsBtn').addEventListener('click', function() {
             fetch('{{ url_for('export_rankings') }}',)

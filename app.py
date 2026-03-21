@@ -11,6 +11,7 @@ import time
 from datetime import datetime
 import logging
 import json
+import sys
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -111,6 +112,16 @@ def update_directory_status(image_count, state=None, message=None):
         'directory': current_directory,
     }
 
+
+def describe_path_access_error(path, error):
+    base_message = f'Cannot access "{path}": {error}.'
+    if sys.platform == 'darwin':
+        return (
+            f'{base_message} On macOS, Python may need explicit permission for Desktop, Documents, or Downloads. '
+            'Grant access to your terminal app in System Settings > Privacy & Security > Files and Folders, then retry.'
+        )
+    return base_message
+
 def get_image_paths(folder, timeout=None, start_time=None, get_progress=False):
     global comparisons_autosave_prefix
     image_paths = []
@@ -153,11 +164,15 @@ def get_image_counts_in_folders(folders, timeout=0.5):
     for folder in folders:
         image_count = None
         comparison_progress = None
-        if time.time() - start_time < timeout:
-            paths, comparison_progress = get_image_paths(folder, timeout=timeout, start_time=start_time, get_progress=True)
-            image_count = len(paths)
-        else: 
-            timed_out = True
+        try:
+            if time.time() - start_time < timeout:
+                paths, comparison_progress = get_image_paths(folder, timeout=timeout, start_time=start_time, get_progress=True)
+                image_count = len(paths)
+            else: 
+                timed_out = True
+        except OSError:
+            image_count = None
+            comparison_progress = None
         folder_name = os.path.basename(os.path.normpath(folder))
         results.append({'folder': folder_name, 'path': folder, 'image_count': image_count, 'comparison_progress': comparison_progress})
         total_image_count += image_count or 0
@@ -487,6 +502,10 @@ def set_directory():
                 return jsonify({'success': False, 'error': f'Directory does not exist: {directory}'}), 400
             if not os.path.isdir(directory):
                 return jsonify({'success': False, 'error': f'Not a directory: {directory}'}), 400
+            try:
+                os.listdir(directory)
+            except OSError as e:
+                return jsonify({'success': False, 'error': describe_path_access_error(directory, e)}), 403
 
             IMAGE_FOLDER = directory
             current_directory = directory  # Save the selected directory
@@ -672,7 +691,21 @@ def browse_directory():
     if not os.path.isdir(abs_path):
         abort(404)
 
-    all_files = os.listdir(abs_path)
+    try:
+        all_files = os.listdir(abs_path)
+    except OSError as e:
+        return render_template(
+            "browse-dir.html",
+            folders=[],
+            current_path=abs_path,
+            parent_path=os.path.dirname(abs_path) if abs_path != os.path.dirname(abs_path) and (not get_restriction_root() or abs_path != get_restriction_root()) else None,
+            images_in_current_folder=None,
+            autosave_progress_file=None,
+            browse_root=browse_root,
+            restriction_root=get_restriction_root(),
+            supported_extensions=', '.join(ext.lstrip('.') for ext in SUPPORTED_IMAGE_EXTENSIONS),
+            error_message=describe_path_access_error(abs_path, e),
+        )
     folders = [
         d for d in all_files
         if os.path.isdir(os.path.join(abs_path, d))

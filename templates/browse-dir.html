@@ -41,6 +41,11 @@
     <button class="main-btn" onclick="selectManualPath()">Use Path</button>
   </div>
 </div>
+{% if error_message %}
+  <div class="browser-error">
+    {{ error_message }}
+  </div>
+{% endif %}
 <ul>
   {% if parent_path %}
     <li>

@@ -105,6 +105,15 @@ input:disabled + .slider { background-color: #e0e0e0; cursor: not-allowed; }
     border-radius: 5px;
     font-size: 0.95rem;
 }
+.browser-error {
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid #efc3c3;
+    background: #fff0f0;
+    color: #8a1c1c;
+    line-height: 1.4;
+}
 .import-toggle-container {
     display: flex;
     justify-content: space-between;

@@ -42,6 +42,7 @@ class ResumeAutosaveTest(unittest.TestCase):
         image_ranker_app.excluded_images = {}
         image_ranker_app.image_pairs = []
         image_ranker_app.current_pair_index = 0
+        image_ranker_app.last_shown_image = None
         image_ranker_app.context_data = None
         image_ranker_app.comparisons_since_autosave = 0
         self.client = image_ranker_app.app.test_client()
@@ -83,6 +84,26 @@ class ResumeAutosaveTest(unittest.TestCase):
         self.assertEqual(len(rankings), 2)
         self.assertEqual(rankings[0][0], self.image_paths[0])
         self.assertEqual(rankings[1][0], self.image_paths[1])
+
+    def test_set_directory_accepts_missing_autosave_field(self):
+        response = self.client.post(
+            "/set_directory",
+            data={"path": "dataset"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["success"])
+        self.assertEqual(image_ranker_app.current_directory, self.dataset_dir)
+
+    def test_load_exclusions_from_autosave_ignores_malformed_json(self):
+        exclusions_file = image_ranker_app.get_exclusions_file_path(self.autosave_file)
+        with open(exclusions_file, "w") as f:
+            f.write("{not valid json")
+
+        self.assertEqual(
+            image_ranker_app.load_exclusions_from_autosave(self.autosave_file),
+            {},
+        )
 
     def test_manual_import_autosave_rebuilds_session_state(self):
         self.client.post(

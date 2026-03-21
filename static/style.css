@@ -156,6 +156,38 @@ p {
     opacity: 1.0;
 }
 
+.directory-status {
+    max-width: 280px;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.35;
+    border: 1px solid #00000014;
+    background-color: #ffffff;
+}
+
+.directory-status.info {
+    color: #4f4f4f;
+}
+
+.directory-status.success {
+    color: #0f5132;
+    background-color: #eef9f1;
+    border-color: #b9e5c8;
+}
+
+.directory-status.warning {
+    color: #7a4f01;
+    background-color: #fff7e6;
+    border-color: #f4ddb0;
+}
+
+.directory-status.error {
+    color: #8a1c1c;
+    background-color: #fff0f0;
+    border-color: #efc3c3;
+}
+
 
 /* ============================ MAIN CONTAINER: Includes the image comparison, progress bar, and the ranking list ============================ */
 .container {
@@ -1260,6 +1292,10 @@ button:active {
         text-align: center;
     }
 
+    .directory-status {
+        max-width: 100%;
+    }
+
     .modal-content {
         width: 90%;
         height: 90vh;
@@ -1329,4 +1365,3 @@ button:active {
         border-right-width: 0;
     }
 }
-

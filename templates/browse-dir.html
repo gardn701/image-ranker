@@ -7,14 +7,22 @@
 </head>
 <body>
 <div class="header">
-  <h4>Current Directory: /{{ current_path }}</h4>
+  <div class="directory-summary">
+    <h4>Current Directory: {{ current_path }}</h4>
+    {% if restriction_root %}
+      <p>Browsing is limited to <code>BASE_DIR</code>: {{ restriction_root }}</p>
+    {% else %}
+      <p>Browsing starts in your home directory. You can also paste any absolute path below.</p>
+    {% endif %}
+    <p>Needs at least 2 supported images. Formats: {{ supported_extensions }}.</p>
+  </div>
   <div class="header-actions">
     <button class="main-btn select-folder-btn" onclick="selectFolder()">
       <span class="material-symbols-rounded">upload</span>
-      Select this Directory
-      {% if images_in_current_folder | replace("+", "") | int > 0 %}
+      Use This Directory
+      {% if images_in_current_folder is not none %}
       <br>
-      ({{images_in_current_folder}} Images)
+      ({{images_in_current_folder}} Supported Images)
       {% endif %}
     </button>
     <div class="import-toggle-container {% if disable_import %}disabled{% endif %}">
@@ -26,10 +34,17 @@
     </div>
   </div>
 </div>
+<div class="manual-path-container">
+  <label for="manualPath">Open a folder by path</label>
+  <div class="manual-path-row">
+    <input id="manualPath" type="text" value="{{ current_path }}" placeholder="/Users/name/Pictures/my-images">
+    <button class="main-btn" onclick="selectManualPath()">Use Path</button>
+  </div>
+</div>
 <ul>
-  {% if current_path %}
+  {% if parent_path %}
     <li>
-      <a href="{{ url_for('browse_directory', path=current_path.rsplit('/', 1)[0] if current_path.count('/') > 0 else '') }}">
+      <a href="{{ url_for('browse_directory', path=parent_path) }}">
         <span class="material-symbols-rounded">keyboard_return</span> Parent
       </a>
     </li>
@@ -38,14 +53,14 @@
     <li class="folder-row">
       <div>
         <span class="material-symbols-rounded">folder</span>
-        <a href="{{ url_for('browse_directory', path=current_path ~ '/' ~ folder.folder if current_path else folder.folder) }}">
+        <a href="{{ url_for('browse_directory', path=folder.path) }}">
           {{ folder.folder }}
         </a>
       </div>
       <div class="folder-info">
-        {% if folder.image_count %}
+        {% if folder.image_count is not none %}
         <span class="material-symbols-rounded">image</span>
-        {{ folder.image_count }} images
+        {{ folder.image_count }} supported images
         {% endif %}
       </div>
       <div>
@@ -74,13 +89,24 @@
 <script>
   function selectFolder() {
     const path = "{{ current_path }}"
-    let autosaveProgressFile = "{{ autosave_progress_file }}"
+    let autosaveProgressFile = "{{ autosave_progress_file or '' }}"
     const importToggleCheckbox = document.getElementById('importToggle');
     if (!importToggleCheckbox.checked) {
-      autosaveProgressFile = null
+      autosaveProgressFile = ''
     }
     window.parent.postMessage(
       { selectedFolder: path, autosaveProgressFile: autosaveProgressFile },
+      "*"
+    )
+  }
+
+  function selectManualPath() {
+    const path = document.getElementById('manualPath').value.trim()
+    if (!path) {
+      return
+    }
+    window.parent.postMessage(
+      { selectedFolder: path, autosaveProgressFile: '' },
       "*"
     )
   }

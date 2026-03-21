@@ -9,10 +9,7 @@ import threading
 from threading import Thread
 import time
 from datetime import datetime
-import tkinter as tk
-from tkinter import filedialog
 import logging
-import platform
 import json
 
 logging.basicConfig(level=logging.DEBUG)
@@ -36,13 +33,83 @@ if exclusion_reasons_file:
     except (FileNotFoundError, json.JSONDecodeError) as e:
         logging.error(f"Error loading exclusion reasons file: {e}")
 
-BASE_DIR = None
 current_directory = None
 
 image_pairs = []
 current_pair_index = 0
 last_shown_image = None
 context_data = None
+SUPPORTED_IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.jfif', '.avif', '.heic', '.heif')
+directory_status = {
+    'state': 'ready',
+    'message': None,
+    'image_count': 0,
+}
+
+
+def get_restriction_root():
+    base_dir = os.environ.get('BASE_DIR')
+    if not base_dir:
+        return None
+    return os.path.realpath(os.path.abspath(os.path.expanduser(base_dir)))
+
+
+def get_browse_root():
+    return get_restriction_root() or os.path.expanduser('~')
+
+
+def is_within_root(path, root):
+    try:
+        return os.path.commonpath([path, root]) == root
+    except ValueError:
+        return False
+
+
+def resolve_user_path(raw_path, fallback_root=None):
+    if raw_path is None:
+        raise ValueError('No directory selected')
+
+    candidate = raw_path.strip()
+    if not candidate:
+        raise ValueError('No directory selected')
+
+    candidate = os.path.expanduser(candidate)
+    if os.path.isabs(candidate):
+        resolved = os.path.realpath(os.path.abspath(candidate))
+    else:
+        base_root = fallback_root or get_browse_root()
+        resolved = os.path.realpath(os.path.abspath(os.path.join(base_root, candidate)))
+
+    restriction_root = get_restriction_root()
+    if restriction_root and not is_within_root(resolved, restriction_root):
+        raise PermissionError(f'Selected path must stay inside BASE_DIR: {restriction_root}')
+
+    return resolved
+
+
+def update_directory_status(image_count, state=None, message=None):
+    global directory_status, current_directory
+
+    if state is None:
+        if image_count == 0:
+            state = 'empty'
+            message = (
+                'No supported images found in the selected folder. '
+                f'Supported formats: {", ".join(ext.lstrip(".") for ext in SUPPORTED_IMAGE_EXTENSIONS)}.'
+            )
+        elif image_count == 1:
+            state = 'insufficient'
+            message = 'Found 1 supported image. Add at least one more image to start ranking.'
+        else:
+            state = 'ready'
+            message = f'Found {image_count} supported images. Ranking is ready.'
+
+    directory_status = {
+        'state': state,
+        'message': message,
+        'image_count': image_count,
+        'directory': current_directory,
+    }
 
 def get_image_paths(folder, timeout=None, start_time=None, get_progress=False):
     global comparisons_autosave_prefix
@@ -65,7 +132,7 @@ def get_image_paths(folder, timeout=None, start_time=None, get_progress=False):
     return image_paths, comparison_progress
 
 def is_eligible_image(root, file):
-    if file.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp', '.jfif', '.avif', '.heic', '.heif')):
+    if file.lower().endswith(SUPPORTED_IMAGE_EXTENSIONS):
         image_path = os.path.join(root, file).replace('\\', '/')
         if image_path not in excluded_images:
             return True
@@ -92,13 +159,14 @@ def get_image_counts_in_folders(folders, timeout=0.5):
         else: 
             timed_out = True
         folder_name = os.path.basename(os.path.normpath(folder))
-        results.append({'folder': folder_name, 'image_count': image_count, 'comparison_progress': comparison_progress})
+        results.append({'folder': folder_name, 'path': folder, 'image_count': image_count, 'comparison_progress': comparison_progress})
         total_image_count += image_count or 0
     return results, total_image_count, timed_out
 
 def initialize_image_pairs(a=False):
     global image_pairs, current_pair_index
     image_paths, _ = get_image_paths(IMAGE_FOLDER)
+    update_directory_status(len(image_paths))
     
     if len(image_paths) < 2:
         image_pairs = []
@@ -202,13 +270,32 @@ def smart_shuffle_route():
     
 @app.route('/get_images')
 def get_images():
-    global current_pair_index, last_shown_image, current_directory, image_pairs
+    global current_pair_index, last_shown_image, current_directory, image_pairs, directory_status
     if not current_directory:
-        return jsonify(None), 200
+        return jsonify({
+            'state': 'no_directory',
+            'message': 'Select a folder containing at least 2 supported images to begin.',
+            'image_count': 0,
+        }), 200
+
+    if directory_status['state'] != 'ready':
+        return jsonify({
+            'state': directory_status['state'],
+            'message': directory_status['message'],
+            'image_count': directory_status['image_count'],
+        }), 200
 
     with image_pairs_lock:
         if current_pair_index >= len(image_pairs):
-            return jsonify({'error': 'All comparisons completed in get_images'})
+            completed_pairs = len(elo_ranking.comparison_history)
+            return jsonify({
+                'state': 'completed',
+                'message': 'All comparisons for this folder are complete.',
+                'progress': {
+                    'current': completed_pairs,
+                    'total': completed_pairs
+                }
+            })
         
         img1, img2 = image_pairs[current_pair_index]
         if last_shown_image is not None:
@@ -390,14 +477,16 @@ def set_directory():
     global IMAGE_FOLDER, current_directory, elo_ranking, image_pairs, current_pair_index, comparisons_since_autosave, excluded_images, context_data
     
     try:
-        rel_path = request.form["path"]
-        rel_autosave_path = request.form["autosaveFile"]
+        selected_path = request.form["path"]
+        selected_autosave_path = request.form["autosaveFile"]
 
-        directory = os.path.join(BASE_DIR, rel_path)
+        directory = resolve_user_path(selected_path)
 
         if directory:
-            if not directory.startswith(BASE_DIR):
-                abort(403)
+            if not os.path.exists(directory):
+                return jsonify({'success': False, 'error': f'Directory does not exist: {directory}'}), 400
+            if not os.path.isdir(directory):
+                return jsonify({'success': False, 'error': f'Not a directory: {directory}'}), 400
 
             IMAGE_FOLDER = directory
             current_directory = directory  # Save the selected directory
@@ -422,8 +511,8 @@ def set_directory():
                 with open(context_txt_path, 'r') as f:
                     context_data = f.read()
 
-            if rel_autosave_path:
-                autosave_file = os.path.join(BASE_DIR, rel_autosave_path)
+            if selected_autosave_path:
+                autosave_file = resolve_user_path(selected_autosave_path)
                 if os.path.exists(autosave_file):
                     with open(autosave_file, 'rb') as file:
                         import_comparison_history_file(file, True)
@@ -433,9 +522,19 @@ def set_directory():
                     with open(exclusions_file_path, 'r') as f:
                         excluded_images = json.load(f)
 
-            return jsonify({'success': True, 'directory': directory})
+            return jsonify({
+                'success': True,
+                'directory': directory,
+                'state': directory_status['state'],
+                'message': directory_status['message'],
+                'image_count': directory_status['image_count'],
+            })
         else:
             return jsonify({'success': False, 'error': 'No directory selected'})
+    except PermissionError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         app.logger.error(f"Error in set_directory: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -552,19 +651,27 @@ def clear_excluded_images():
 @app.route('/get_current_directory')
 def get_current_directory():
     global current_directory
-    return jsonify({'directory': current_directory if current_directory else None})
+    return jsonify({
+        'directory': current_directory if current_directory else None,
+        'state': directory_status['state'],
+        'message': directory_status['message'],
+        'image_count': directory_status['image_count'],
+    })
 
 @app.route("/browse_directory")
 def browse_directory():
-    global BASE_DIR
-    if 'BASE_DIR' not in os.environ:
-        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    else:
-        BASE_DIR = os.environ['BASE_DIR']
-    rel_path = request.args.get("path", "")
-    abs_path = os.path.normpath(os.path.join(BASE_DIR, rel_path))
-    if not abs_path.startswith(BASE_DIR):
+    browse_root = get_browse_root()
+    requested_path = request.args.get("path", "")
+    try:
+        abs_path = resolve_user_path(requested_path, fallback_root=browse_root) if requested_path else browse_root
+    except PermissionError:
         abort(403)
+    except ValueError:
+        abs_path = browse_root
+
+    if not os.path.isdir(abs_path):
+        abort(404)
+
     all_files = os.listdir(abs_path)
     folders = [
         d for d in all_files
@@ -583,9 +690,13 @@ def browse_directory():
     return render_template(
         "browse-dir.html",
         folders=folders,
-        current_path=rel_path,
+        current_path=abs_path,
+        parent_path=os.path.dirname(abs_path) if abs_path != os.path.dirname(abs_path) and (not get_restriction_root() or abs_path != get_restriction_root()) else None,
         images_in_current_folder=total_image_count,
-        autosave_progress_file=autosave_progress_file
+        autosave_progress_file=autosave_progress_file,
+        browse_root=browse_root,
+        restriction_root=get_restriction_root(),
+        supported_extensions=', '.join(ext.lstrip('.') for ext in SUPPORTED_IMAGE_EXTENSIONS),
     )
 
 

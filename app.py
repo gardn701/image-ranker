@@ -43,13 +43,22 @@ image_pairs = []
 current_pair_index = 0
 last_shown_image = None
 context_data = None
+comparisons_since_autosave = 0
 
 
 def resolve_path_within_base_dir(path):
-    abs_path = os.path.normpath(os.path.join(BASE_DIR, path))
-    if not abs_path.startswith(BASE_DIR):
+    if BASE_DIR is None:
+        abort(500, "BASE_DIR not configured")
+
+    base_abs = os.path.abspath(BASE_DIR)
+    target_abs = os.path.abspath(os.path.join(base_abs, path))
+    try:
+        if os.path.commonpath([base_abs, target_abs]) != base_abs:
+            abort(403)
+    except ValueError:
         abort(403)
-    return abs_path
+
+    return target_abs
 
 
 def get_exclusions_file_path(autosave_file):
@@ -62,8 +71,12 @@ def load_exclusions_from_autosave(autosave_file):
     if not os.path.exists(exclusions_file_path):
         return {}
 
-    with open(exclusions_file_path, 'r') as f:
-        return json.load(f)
+    try:
+        with open(exclusions_file_path, 'r') as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        app.logger.error(f"Failed to load exclusions file {exclusions_file_path}: {e}")
+        return {}
 
 
 def reset_ranking_session(load_context=False):
@@ -470,7 +483,7 @@ def set_directory():
     
     try:
         rel_path = request.form["path"]
-        rel_autosave_path = request.form["autosaveFile"]
+        rel_autosave_path = request.form.get("autosaveFile", "")
 
         directory = resolve_path_within_base_dir(rel_path)
 
@@ -702,5 +715,4 @@ if __name__ == '__main__':
     else:
         current_directory = IMAGE_FOLDER
     initialize_image_pairs()
-    comparisons_since_autosave = 0
     app.run(debug=False, threaded=True)

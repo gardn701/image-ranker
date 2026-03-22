@@ -172,7 +172,7 @@ input:disabled + .slider {
 
 .directory-controls {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
     gap: 8px;
     align-items: end;
 }
@@ -216,6 +216,24 @@ input:disabled + .slider {
     display: flex;
     flex-direction: column;
     gap: 4px;
+}
+
+.directory-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    padding: 0 10px;
+    border: 1px solid #cfcfcf;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #333333;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.directory-toggle input {
+    margin: 0;
 }
 
 .directory-control span {

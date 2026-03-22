@@ -45,6 +45,10 @@
         <span class="material-symbols-rounded">search</span>
         <input id="directorySearch" type="search" placeholder="Search folders or paths">
       </div>
+      <label class="directory-toggle">
+        <input id="showHiddenDirectories" type="checkbox">
+        <span>Show hidden</span>
+      </label>
       <label class="directory-control">
         <span>Show</span>
         <select id="directoryFilter">
@@ -144,6 +148,7 @@
         data-progress="{{ folder.comparison_progress or 0 }}"
         data-ready="{{ 'true' if is_ready else 'false' }}"
         data-resume="{{ 'true' if has_resume else 'false' }}"
+        data-hidden="{{ 'true' if folder.folder.startswith('.') else 'false' }}"
       >
         <a class="directory-link" href="{{ url_for('browse_directory', path=folder.path, sort=current_sort) }}">
           <span class="directory-leading-icon">
@@ -177,13 +182,16 @@
   const directoryFilterSelect = document.getElementById('directoryFilter')
   const directorySortSelect = document.getElementById('directorySort')
   const directoryCount = document.getElementById('directoryCount')
+  const showHiddenDirectoriesToggle = document.getElementById('showHiddenDirectories')
   const directoryItems = Array.from(document.querySelectorAll('[data-folder-item="true"]'))
 
   function applyDirectoryControls() {
     const searchTerm = directorySearchInput.value.trim().toLowerCase()
     const filterValue = directoryFilterSelect.value
+    const showHiddenDirectories = showHiddenDirectoriesToggle.checked
 
     const filteredItems = directoryItems.filter((item) => {
+      const matchesHiddenSetting = showHiddenDirectories || item.dataset.hidden !== 'true'
       const matchesSearch = !searchTerm ||
         item.dataset.name.includes(searchTerm) ||
         item.dataset.path.includes(searchTerm)
@@ -195,7 +203,7 @@
         matchesFilter = item.dataset.resume === 'true'
       }
 
-      const visible = matchesSearch && matchesFilter
+      const visible = matchesHiddenSetting && matchesSearch && matchesFilter
       item.hidden = !visible
       return visible
     })
@@ -210,6 +218,7 @@
   }
 
   directorySearchInput.addEventListener('input', applyDirectoryControls)
+  showHiddenDirectoriesToggle.addEventListener('change', applyDirectoryControls)
   directoryFilterSelect.addEventListener('change', applyDirectoryControls)
   directorySortSelect.addEventListener('change', updateDirectorySort)
   applyDirectoryControls()

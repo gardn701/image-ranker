@@ -42,6 +42,7 @@ image_pairs = []
 skipped_pairs = set()
 current_pair_index = 0
 last_shown_image = None
+current_displayed_pair = None
 context_data = None
 SUPPORTED_IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.jfif', '.avif', '.heic', '.heif')
 directory_status = {
@@ -213,13 +214,16 @@ def load_skipped_pairs_from_autosave(autosave_file):
 
 
 def reset_ranking_session(load_context=False):
-    global elo_ranking, excluded_images, image_pairs, skipped_pairs, current_pair_index, comparisons_since_autosave, context_data
+    global elo_ranking, excluded_images, image_pairs, skipped_pairs, current_pair_index
+    global comparisons_since_autosave, context_data, last_shown_image, current_displayed_pair
 
     elo_ranking = TrueSkillRanking()
     excluded_images = {}
     image_pairs = []
     skipped_pairs = set()
     current_pair_index = 0
+    last_shown_image = None
+    current_displayed_pair = None
     comparisons_since_autosave = 0
     if not load_context:
         context_data = None
@@ -403,13 +407,14 @@ def sort_browse_folders(folders, sort_mode):
     return sorted(folders, key=get_browse_folder_sort_key)
 
 def initialize_image_pairs(a=False):
-    global image_pairs, current_pair_index
+    global image_pairs, current_pair_index, current_displayed_pair
     image_paths, _ = get_image_paths(IMAGE_FOLDER)
     update_directory_status(len(image_paths))
     
     if len(image_paths) < 2:
         image_pairs = []
         current_pair_index = 0
+        current_displayed_pair = None
         return
 
     random.shuffle(image_paths)
@@ -442,6 +447,27 @@ def initialize_image_pairs(a=False):
     
     random.shuffle(image_pairs[n:])
     current_pair_index = 0
+    current_displayed_pair = None
+
+
+def requeue_pair_for_reranking(pair):
+    global image_pairs, current_pair_index, current_displayed_pair
+
+    target_index = max(current_pair_index - (1 if current_displayed_pair is not None else 0), 0)
+    target_pair = canonicalize_pair(pair)
+    rebuilt_pairs = []
+
+    for existing_pair in image_pairs:
+        if canonicalize_pair(existing_pair) == target_pair:
+            if len(rebuilt_pairs) < target_index:
+                target_index -= 1
+            continue
+        rebuilt_pairs.append(existing_pair)
+
+    rebuilt_pairs.insert(target_index, pair)
+    image_pairs = rebuilt_pairs
+    current_pair_index = target_index
+    current_displayed_pair = None
 
 
 def parse_comparison_history_rows(file):
@@ -548,6 +574,7 @@ def smart_shuffle_route():
 @app.route('/get_images')
 def get_images():
     global current_pair_index, last_shown_image, current_directory, image_pairs, directory_status
+    global current_displayed_pair
     if not current_directory:
         return jsonify({
             'state': 'no_directory',
@@ -564,6 +591,7 @@ def get_images():
 
     with image_pairs_lock:
         if current_pair_index >= len(image_pairs):
+            current_displayed_pair = None
             completed_pairs = len(elo_ranking.comparison_history)
             return jsonify({
                 'state': 'completed',
@@ -574,13 +602,15 @@ def get_images():
                 }
             })
         
-        img1, img2 = image_pairs[current_pair_index]
+        queued_pair = image_pairs[current_pair_index]
+        img1, img2 = queued_pair
         if last_shown_image is not None:
             if img1 == last_shown_image:
                 img1, img2 = img2, img1
                 app.logger.debug(f"Swapped display order: {os.path.basename(img1)} vs {os.path.basename(img2)}")
             elif img2 == last_shown_image:
                 pass
+        current_displayed_pair = queued_pair
         last_shown_image = img1
         current_pair_index += 1
         completed_pairs = len(elo_ranking.comparison_history)
@@ -687,13 +717,14 @@ def autosave_rankings():
 
 @app.route('/update_elo', methods=['POST'])
 def update_elo():
-    global comparisons_since_autosave, current_pair_index
+    global comparisons_since_autosave, current_pair_index, current_displayed_pair
     data = request.json
     if not data or 'winner' not in data or 'loser' not in data:
         return jsonify({'error': 'Missing winner or loser in request'}), 400
     winner = data['winner']
     loser = data['loser']
     elo_ranking.update_rating((winner, loser))
+    current_displayed_pair = None
     if data.get('exclude_loser', False):
         excluded_images[loser] = 'excluded'
         # Recalculate image pairs
@@ -709,7 +740,7 @@ def update_elo():
 
 @app.route('/skip_pair', methods=['POST'])
 def skip_pair():
-    global current_pair_index, image_pairs, current_directory, skipped_pairs
+    global current_pair_index, image_pairs, current_directory, skipped_pairs, current_displayed_pair
     if not current_directory:
         return jsonify({'error': 'No directory selected'}), 400
 
@@ -719,6 +750,7 @@ def skip_pair():
             pair = image_pairs.pop(current_pair_index - 1)
             skipped_pairs.add(canonicalize_pair(pair))
             current_pair_index -= 1
+            current_displayed_pair = None
             app.logger.info(f"Skipped pair: {pair}")
             skipped = True
 
@@ -730,11 +762,43 @@ def skip_pair():
 
 @app.route('/remove_image', methods=['POST'])
 def remove_image():
+    global current_displayed_pair, image_pairs
     image = request.json['del_img']
-    global image_pairs
-    image_pairs = [(img1, img2) for img1, img2 in image_pairs if img1!= image and img2!= image]
-    elo_ranking.remove_image(image)
+
+    with image_pairs_lock:
+        image_pairs = [(img1, img2) for img1, img2 in image_pairs if img1 != image and img2 != image]
+        elo_ranking.remove_image(image)
+        current_displayed_pair = None
+
     return jsonify({'success': True})
+
+
+@app.route('/revert_last_comparison', methods=['POST'])
+def revert_last_comparison():
+    global comparisons_since_autosave, last_shown_image
+
+    if not current_directory:
+        return jsonify({'error': 'No directory selected'}), 400
+
+    with image_pairs_lock:
+        revertable_pair = elo_ranking.get_last_revertable_comparison()
+        if revertable_pair is None:
+            return jsonify({'error': 'No ranking decision is available to revert.'}), 400
+
+        canonical_pair = canonicalize_pair(revertable_pair)
+        if canonical_pair in skipped_pairs:
+            return jsonify({'error': 'The last ranking cannot be reverted because that pair is currently skipped.'}), 400
+
+        if any(image in excluded_images for image in revertable_pair):
+            return jsonify({'error': 'The last ranking cannot be reverted because one of its images is currently excluded.'}), 400
+
+        reverted_pair = elo_ranking.revert_last_comparison()
+        requeue_pair_for_reranking(reverted_pair)
+        last_shown_image = None
+
+    comparisons_since_autosave = 0
+    autosave_rankings()
+    return jsonify({'success': True, 'pair': list(reverted_pair)})
 
 @app.route('/get_rankings')
 def get_rankings():
@@ -913,21 +977,23 @@ def get_exclusion_reasons():
 
 @app.route('/exclude_image', methods=['POST'])
 def exclude_image():
-    global excluded_images
+    global excluded_images, current_displayed_pair
     data = request.json
     excluded_image = data['excluded_image']
     reason = data.get('reason', 'excluded')
     excluded_images[excluded_image] = reason
     # Recalculate image pairs
     initialize_image_pairs()
+    current_displayed_pair = None
     return jsonify({'success': True})
 
 @app.route('/clear_excluded_images', methods=['POST'])
 def clear_excluded_images():
-    global excluded_images
+    global excluded_images, current_displayed_pair
     excluded_images.clear()
     # Recalculate image pairs
     initialize_image_pairs()
+    current_displayed_pair = None
     return jsonify({'success': True})
 
 # Add a new route to get the current directory

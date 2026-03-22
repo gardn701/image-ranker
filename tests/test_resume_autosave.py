@@ -48,6 +48,7 @@ class ResumeAutosaveTest(unittest.TestCase):
         image_ranker_app.skipped_pairs = set()
         image_ranker_app.current_pair_index = 0
         image_ranker_app.last_shown_image = None
+        image_ranker_app.current_displayed_pair = None
         image_ranker_app.context_data = None
         image_ranker_app.comparisons_since_autosave = 0
         self.client = image_ranker_app.app.test_client()
@@ -225,6 +226,139 @@ class ResumeAutosaveTest(unittest.TestCase):
             image_ranker_app.canonicalize_pair(skipped_pair),
             {image_ranker_app.canonicalize_pair(pair) for pair in image_ranker_app.image_pairs},
         )
+
+    def test_revert_last_comparison_restores_previous_pair(self):
+        self.client.post(
+            "/set_directory",
+            data={"path": "dataset"},
+        )
+
+        first_pair_response = self.client.get("/get_images")
+        first_pair = first_pair_response.get_json()
+
+        self.client.post(
+            "/update_elo",
+            json={
+                "winner": first_pair["image1"],
+                "loser": first_pair["image2"],
+            },
+        )
+
+        self.client.get("/get_images")
+
+        response = self.client.post("/revert_last_comparison")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["success"])
+        self.assertEqual(len(image_ranker_app.elo_ranking.comparison_history), 0)
+
+        restored_pair_response = self.client.get("/get_images")
+        restored_pair = restored_pair_response.get_json()
+        self.assertEqual(
+            image_ranker_app.canonicalize_pair((restored_pair["image1"], restored_pair["image2"])),
+            image_ranker_app.canonicalize_pair((first_pair["image1"], first_pair["image2"])),
+        )
+
+    def test_revert_last_comparison_can_walk_back_multiple_rankings(self):
+        self.client.post(
+            "/set_directory",
+            data={"path": "dataset"},
+        )
+
+        first_pair = self.client.get("/get_images").get_json()
+        self.client.post(
+            "/update_elo",
+            json={
+                "winner": first_pair["image1"],
+                "loser": first_pair["image2"],
+            },
+        )
+
+        second_pair = self.client.get("/get_images").get_json()
+        self.client.post(
+            "/update_elo",
+            json={
+                "winner": second_pair["image1"],
+                "loser": second_pair["image2"],
+            },
+        )
+
+        self.client.get("/get_images")
+
+        first_revert = self.client.post("/revert_last_comparison")
+        self.assertEqual(first_revert.status_code, 200)
+        restored_second_pair = self.client.get("/get_images").get_json()
+        self.assertEqual(
+            image_ranker_app.canonicalize_pair((restored_second_pair["image1"], restored_second_pair["image2"])),
+            image_ranker_app.canonicalize_pair((second_pair["image1"], second_pair["image2"])),
+        )
+
+        second_revert = self.client.post("/revert_last_comparison")
+        self.assertEqual(second_revert.status_code, 200)
+        restored_first_pair = self.client.get("/get_images").get_json()
+        self.assertEqual(
+            image_ranker_app.canonicalize_pair((restored_first_pair["image1"], restored_first_pair["image2"])),
+            image_ranker_app.canonicalize_pair((first_pair["image1"], first_pair["image2"])),
+        )
+        self.assertEqual(len(image_ranker_app.elo_ranking.comparison_history), 0)
+
+    def test_revert_last_comparison_rejects_excluded_images_without_mutating_history(self):
+        self.client.post(
+            "/set_directory",
+            data={"path": "dataset"},
+        )
+
+        first_pair = self.client.get("/get_images").get_json()
+        self.client.post(
+            "/update_elo",
+            json={
+                "winner": first_pair["image1"],
+                "loser": first_pair["image2"],
+            },
+        )
+
+        image_ranker_app.excluded_images[first_pair["image2"]] = "excluded"
+        rankings_before = image_ranker_app.elo_ranking.get_rankings()
+
+        response = self.client.post("/revert_last_comparison")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("currently excluded", response.get_json()["error"])
+        self.assertEqual(
+            image_ranker_app.elo_ranking.comparison_history,
+            [(first_pair["image1"], first_pair["image2"])],
+        )
+        self.assertEqual(image_ranker_app.elo_ranking.get_rankings(), rankings_before)
+
+    def test_revert_last_comparison_rejects_skipped_pairs_without_mutating_history(self):
+        self.client.post(
+            "/set_directory",
+            data={"path": "dataset"},
+        )
+
+        first_pair = self.client.get("/get_images").get_json()
+        self.client.post(
+            "/update_elo",
+            json={
+                "winner": first_pair["image1"],
+                "loser": first_pair["image2"],
+            },
+        )
+
+        image_ranker_app.skipped_pairs.add(
+            image_ranker_app.canonicalize_pair((first_pair["image1"], first_pair["image2"]))
+        )
+        rankings_before = image_ranker_app.elo_ranking.get_rankings()
+
+        response = self.client.post("/revert_last_comparison")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("currently skipped", response.get_json()["error"])
+        self.assertEqual(
+            image_ranker_app.elo_ranking.comparison_history,
+            [(first_pair["image1"], first_pair["image2"])],
+        )
+        self.assertEqual(image_ranker_app.elo_ranking.get_rankings(), rankings_before)
 
 
 if __name__ == "__main__":

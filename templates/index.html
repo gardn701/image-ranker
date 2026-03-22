@@ -93,8 +93,8 @@
                     <span class="material-symbols-rounded">upload</span>
                     Select Local Directory
                 </button>
-                <button id="import-comparison-history-btn" class="major-icon-btn" title="Import comparisons.csv or comparisons_autosave_YYYY-MM-DD.csv. Use Select Local Directory to resume a full autosave session with exclusions.">
-                    <span class="material-symbols-rounded">history</span>
+                <button id="revert-last-comparison-btn" class="major-icon-btn" title="Revert the last ranking and show that pair again.">
+                    <span class="material-symbols-rounded">undo</span>
                 </button>
             </div>
         </div>
@@ -679,48 +679,26 @@
             });
         });
         
-        document.getElementById('import-comparison-history-btn').addEventListener('click', function() {
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = '.csv,text/csv';
-            fileInput.addEventListener('change', function() {
-                const file = fileInput.files[0];
-                if (!file) {
-                    return;
+        document.getElementById('revert-last-comparison-btn').addEventListener('click', function() {
+            fetch('{{ url_for('revert_last_comparison') }}', {
+                method: 'POST'
+            })
+            .then(async (response) => {
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Unable to revert the last ranking.');
                 }
-                const formData = new FormData();
-                formData.append('file', file);
-                
-                const append = confirm("Do you want to append the imported history to the existing comparison history? If not, the existing history will be replaced.");
-                formData.append('append', append);
-                
-                fetch('{{ url_for('import_comparison_history') }}', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => {
-                    return response.json().then(data => {
-                        if (!response.ok) {
-                            throw new Error(data.error || 'Error importing comparison history.');
-                        }
-                        return data;
-                    });
-                })
-                .then(data => {
-                    if (data.success) {
-                        alert('Comparison history imported successfully!');
-                        updateRankings(); // Update the ranking display
-                        loadImages(); // Update the progress display
-                    } else {
-                        alert(data.error || 'Error importing comparison history!');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert(error.message);
-                });
+                return data;
+            })
+            .then(() => {
+                setComparisonStatus('Last ranking reverted. Re-rank the restored pair when ready.', 'info');
+                updateRankings();
+                loadImages();
+            })
+            .catch((error) => {
+                console.error('Error reverting last comparison:', error);
+                setComparisonStatus(error.message, 'warning');
             });
-            fileInput.click();
         });
         
         function playClickSound() {

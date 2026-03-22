@@ -26,6 +26,7 @@ image_pairs_lock = threading.Lock()
 comparisons_autosave_prefix = 'comparisons_autosave_'
 AUTOSAVE_FREQUENCY = int(os.environ.get('AUTOSAVE_FREQUENCY', '10'))
 SOUND_ENABLED = os.environ.get('SOUND_ENABLED', 'True').lower() == 'true'
+BASE_DIR = os.environ.get('BASE_DIR')
 
 exclusion_reasons_file = os.environ.get('EXCLUSION_REASONS_FILE')
 if exclusion_reasons_file:
@@ -75,7 +76,7 @@ def initialize_default_demo_directory():
 
 
 def get_restriction_root():
-    base_dir = os.environ.get('BASE_DIR')
+    base_dir = BASE_DIR or os.environ.get('BASE_DIR')
     if not base_dir:
         return None
     return os.path.realpath(os.path.abspath(os.path.expanduser(base_dir)))

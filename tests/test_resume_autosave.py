@@ -11,7 +11,7 @@ import app as image_ranker_app
 class ResumeAutosaveTest(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.base_dir = self.temp_dir.name
+        self.base_dir = os.path.realpath(self.temp_dir.name)
         self.dataset_dir = os.path.join(self.base_dir, "dataset")
         os.makedirs(self.dataset_dir)
 

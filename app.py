@@ -779,10 +779,18 @@ def revert_last_comparison():
         return jsonify({'error': 'No directory selected'}), 400
 
     with image_pairs_lock:
-        reverted_pair = elo_ranking.revert_last_comparison()
-        if reverted_pair is None:
+        revertable_pair = elo_ranking.get_last_revertable_comparison()
+        if revertable_pair is None:
             return jsonify({'error': 'No ranking decision is available to revert.'}), 400
 
+        canonical_pair = canonicalize_pair(revertable_pair)
+        if canonical_pair in skipped_pairs:
+            return jsonify({'error': 'The last ranking cannot be reverted because that pair is currently skipped.'}), 400
+
+        if any(image in excluded_images for image in revertable_pair):
+            return jsonify({'error': 'The last ranking cannot be reverted because one of its images is currently excluded.'}), 400
+
+        reverted_pair = elo_ranking.revert_last_comparison()
         requeue_pair_for_reranking(reverted_pair)
         last_shown_image = None
 

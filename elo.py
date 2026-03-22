@@ -36,13 +36,20 @@ class TrueSkillRanking:
 
     def revert_last_comparison(self):
         for index in range(len(self.comparison_history) - 1, -1, -1):
-            winner, loser = self.comparison_history[index]
+            winner, _loser = self.comparison_history[index]
             if winner is None:
                 continue
 
             reverted_pair = self.comparison_history.pop(index)
             self.recalculate_rankings()
             return reverted_pair
+
+        return None
+
+    def get_last_revertable_comparison(self):
+        for winner, loser in reversed(self.comparison_history):
+            if winner is not None:
+                return (winner, loser)
 
         return None
         

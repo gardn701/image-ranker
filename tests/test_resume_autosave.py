@@ -302,6 +302,64 @@ class ResumeAutosaveTest(unittest.TestCase):
         )
         self.assertEqual(len(image_ranker_app.elo_ranking.comparison_history), 0)
 
+    def test_revert_last_comparison_rejects_excluded_images_without_mutating_history(self):
+        self.client.post(
+            "/set_directory",
+            data={"path": "dataset"},
+        )
+
+        first_pair = self.client.get("/get_images").get_json()
+        self.client.post(
+            "/update_elo",
+            json={
+                "winner": first_pair["image1"],
+                "loser": first_pair["image2"],
+            },
+        )
+
+        image_ranker_app.excluded_images[first_pair["image2"]] = "excluded"
+        rankings_before = image_ranker_app.elo_ranking.get_rankings()
+
+        response = self.client.post("/revert_last_comparison")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("currently excluded", response.get_json()["error"])
+        self.assertEqual(
+            image_ranker_app.elo_ranking.comparison_history,
+            [(first_pair["image1"], first_pair["image2"])],
+        )
+        self.assertEqual(image_ranker_app.elo_ranking.get_rankings(), rankings_before)
+
+    def test_revert_last_comparison_rejects_skipped_pairs_without_mutating_history(self):
+        self.client.post(
+            "/set_directory",
+            data={"path": "dataset"},
+        )
+
+        first_pair = self.client.get("/get_images").get_json()
+        self.client.post(
+            "/update_elo",
+            json={
+                "winner": first_pair["image1"],
+                "loser": first_pair["image2"],
+            },
+        )
+
+        image_ranker_app.skipped_pairs.add(
+            image_ranker_app.canonicalize_pair((first_pair["image1"], first_pair["image2"]))
+        )
+        rankings_before = image_ranker_app.elo_ranking.get_rankings()
+
+        response = self.client.post("/revert_last_comparison")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("currently skipped", response.get_json()["error"])
+        self.assertEqual(
+            image_ranker_app.elo_ranking.comparison_history,
+            [(first_pair["image1"], first_pair["image2"])],
+        )
+        self.assertEqual(image_ranker_app.elo_ranking.get_rankings(), rankings_before)
+
 
 if __name__ == "__main__":
     unittest.main()

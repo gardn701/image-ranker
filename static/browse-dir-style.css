@@ -1,9 +1,15 @@
+html,
+body {
+    height: 100%;
+}
+
 body {
     font-family: Arial, sans-serif;
     margin: 0;
-    padding: 16px;
+    padding: 10px;
     background: linear-gradient(180deg, #f8f8f8 0%, #f3f3f3 100%);
     color: #111111;
+    overflow: hidden;
 }
 
 .material-symbols-rounded {
@@ -15,83 +21,129 @@ body {
     vertical-align: middle;
 }
 
+.browser-layout {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow: hidden;
+}
+
+.browser-top {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid #d9d9d9;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+}
+
 .header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    gap: 20px;
-    margin-bottom: 16px;
-    padding: 20px;
-    border: 1px solid #d9d9d9;
-    border-radius: 18px;
-    background: rgba(255, 255, 255, 0.96);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+    gap: 12px;
 }
 
 .directory-summary {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
     min-width: 0;
+    flex: 1;
+}
+
+.browser-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
 }
 
 .eyebrow {
     display: inline-flex;
     align-items: center;
     width: fit-content;
-    padding: 4px 10px;
+    padding: 3px 8px;
     border-radius: 999px;
     background: #111111;
     color: #ffffff;
-    font-size: 0.72rem;
+    font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
 }
 
-.directory-summary h4 {
-    margin: 0;
-    font-size: 1.2rem;
+.top-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: #f1f1f1;
+    color: #333333;
+    font-size: 0.72rem;
+    line-height: 1;
 }
 
-.current-path {
-    font-size: 1rem;
+.top-badge .material-symbols-rounded {
+    font-size: 15px;
+}
+
+.directory-summary h4 {
+    margin: 0;
+    font-size: 1.05rem;
     font-weight: 600;
-    line-height: 1.4;
-    word-break: break-word;
+    line-height: 1.2;
 }
 
 .directory-summary p {
     margin: 0;
     color: #555555;
-    font-size: 0.92rem;
-    line-height: 1.45;
+    font-size: 0.8rem;
+    line-height: 1.35;
+}
+
+.current-path-chip {
+    padding: 8px 10px;
+    border: 1px solid #dddddd;
+    border-radius: 12px;
+    background: #fafafa;
+    font-size: 0.79rem;
+    line-height: 1.2;
+    color: #333333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .header-actions {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    width: 280px;
+    gap: 8px;
+    width: 240px;
     flex-shrink: 0;
 }
 
 .select-folder-btn {
     width: 100%;
-    min-height: 58px;
-    flex-direction: column;
-    gap: 4px;
+    min-height: 40px;
+    gap: 6px;
     text-align: center;
+    white-space: nowrap;
 }
 
 .import-toggle-container {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 10px;
-    padding: 12px 14px;
+    gap: 8px;
+    padding: 8px 10px;
     border: 1px solid #dedede;
-    border-radius: 14px;
+    border-radius: 12px;
     background: #fafafa;
 }
 
@@ -100,10 +152,10 @@ body {
 }
 
 .import-label {
-    font-size: 0.82rem;
+    font-size: 0.76rem;
     color: #333333;
     text-align: left;
-    line-height: 1.3;
+    line-height: 1.25;
 }
 
 .switch {
@@ -154,56 +206,65 @@ input:disabled + .slider {
     cursor: not-allowed;
 }
 
-.manual-path-container {
-    margin-bottom: 16px;
-    display: flex;
-    flex-direction: column;
+.path-toolbar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 8px;
-    padding: 18px 20px;
-    border: 1px solid #d9d9d9;
-    border-radius: 18px;
-    background: rgba(255, 255, 255, 0.94);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.04);
+    align-items: center;
 }
 
-.manual-path-container label {
-    font-size: 0.9rem;
+.path-toolbar label {
+    font-size: 0.76rem;
     font-weight: 600;
-    color: #222222;
+    color: #555555;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
 }
 
-.manual-path-row {
-    display: flex;
-    gap: 10px;
-}
-
-.manual-path-row input {
-    flex: 1;
-    padding: 12px 14px;
+.path-toolbar input {
+    min-width: 0;
+    padding: 10px 12px;
     border: 1px solid #cfcfcf;
-    border-radius: 12px;
-    font-size: 0.96rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
     background: #fafafa;
 }
 
-.manual-path-row input:focus {
+.path-toolbar input:focus {
     outline: none;
     border-color: #111111;
     box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.08);
     background: #ffffff;
 }
 
+.path-btn {
+    min-height: 40px;
+    white-space: nowrap;
+}
+
+.directory-list-intro {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 0 2px;
+}
+
+.directory-list-intro h5 {
+    margin: 0;
+    font-size: 0.92rem;
+}
+
 .browser-error {
-    margin-bottom: 16px;
-    padding: 14px 16px;
-    border-radius: 14px;
+    padding: 10px 12px;
+    border-radius: 12px;
     border: 1px solid #efc3c3;
     background: #fff0f0;
     color: #8a1c1c;
-    line-height: 1.45;
+    line-height: 1.35;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
 }
 
 .browser-error-btn {
@@ -211,28 +272,10 @@ input:disabled + .slider {
 }
 
 .directory-list-shell {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.directory-list-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    gap: 16px;
-}
-
-.directory-list-header h5 {
-    margin: 0 0 4px;
-    font-size: 1rem;
-}
-
-.directory-list-header p {
-    margin: 0;
-    color: #666666;
-    font-size: 0.88rem;
-    line-height: 1.4;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 2px;
 }
 
 .directory-count {
@@ -406,30 +449,28 @@ input:disabled + .slider {
 
 @media (max-width: 768px) {
     body {
-        padding: 12px;
+        padding: 8px;
+    }
+
+    .browser-top {
+        padding: 10px;
     }
 
     .header {
         flex-direction: column;
         align-items: stretch;
-        padding: 16px;
     }
 
     .header-actions {
         width: 100%;
     }
 
-    .manual-path-container {
-        padding: 16px;
+    .path-toolbar {
+        grid-template-columns: 1fr;
     }
 
-    .manual-path-row {
-        flex-direction: column;
-    }
-
-    .directory-list-header {
-        flex-direction: column;
-        align-items: flex-start;
+    .path-toolbar label {
+        margin-bottom: -2px;
     }
 
     .directory-link {
@@ -438,6 +479,6 @@ input:disabled + .slider {
     }
 
     .directory-action {
-        margin-left: 60px;
+        margin-left: 44px;
     }
 }

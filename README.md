@@ -44,7 +44,9 @@
    pip install flask trueskill
    ```
 4. Run the Flask app: `python app.py`.
-    - By default, only image folders within the `image-ranker` folder are accessible to the app. To permit access to different folders, specify the `BASE_DIR` environment variable (e.g. `BASE_DIR=/your/path python app.py`)
+    - On startup, the app loads the bundled demo images from `static/images` so you can try it immediately.
+    - When you open the directory picker, browsing starts in your home folder and you can also paste any absolute path directly in the UI.
+    - If you want to intentionally restrict browsing to a specific subtree, set `BASE_DIR` (e.g. `BASE_DIR=/your/path python app.py`).
 5. Open a web browser and navigate to `http://localhost:5000`.
 
 ### Configuration

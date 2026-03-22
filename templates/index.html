@@ -50,6 +50,7 @@
                 <span id="image1-name"></span>
                 <span id="image2-name"></span>
             </div>
+            <div id="comparisonStatus" class="comparison-status comparison-status-hidden" aria-live="polite"></div>
             <div class="buttons">
                 <div class="button-group">
                     <div class="action-buttons">
@@ -95,10 +96,6 @@
                 <button id="import-comparison-history-btn" class="major-icon-btn" title="Import comparisons.csv or comparisons_autosave_YYYY-MM-DD.csv. Use Select Local Directory to resume a full autosave session with exclusions.">
                     <span class="material-symbols-rounded">history</span>
                 </button>
-            </div>
-            <div id="currentDirectory" class="current-directory">Not selected</div>
-            <div class="current-directory" style="font-size: 0.85rem; opacity: 0.8;">
-                Import uses <code>comparisons.csv</code> or <code>comparisons_autosave_YYYY-MM-DD.csv</code>. The rankings CSV is only a snapshot.
             </div>
         </div>
 
@@ -201,6 +198,42 @@
                 });
         }
 
+        function clearComparisonView() {
+            currentImages = {};
+            document.getElementById('image1').src = '';
+            document.getElementById('image2').src = '';
+            document.getElementById('image1-name').textContent = '';
+            document.getElementById('image2-name').textContent = '';
+            document.getElementById('context-image1-btn').style.display = 'none';
+            document.getElementById('context-image2-btn').style.display = 'none';
+        }
+
+        function setComparisonStatus(message, tone = 'info') {
+            const statusEl = document.getElementById('comparisonStatus');
+            if (!message) {
+                statusEl.textContent = '';
+                statusEl.className = 'comparison-status comparison-status-hidden';
+                return;
+            }
+
+            statusEl.textContent = message;
+            statusEl.className = `comparison-status comparison-status-${tone}`;
+        }
+
+        function setComparisonControlsEnabled(enabled) {
+            [
+                'image1-btn',
+                'image2-btn',
+                'remove-image1-btn',
+                'remove-image2-btn',
+                'skip-btn',
+                'context-image1-btn',
+                'context-image2-btn'
+            ].forEach((id) => {
+                document.getElementById(id).disabled = !enabled;
+            });
+        }
+
         function loadImages() {
             fetch('{{ url_for('get_images') }}',)
             .then(response => response.json())
@@ -208,22 +241,21 @@
                 if (!data) {
                     return;
                 }
-                if (data.error) {
-                    if (data.error === 'All comparisons completed in get_images') {
-                        currentImages = {};
-                        document.getElementById('image1').src = '';
-                        document.getElementById('image2').src = '';
-                        document.getElementById('image1-name').textContent = '';
-                        document.getElementById('image2-name').textContent = '';
-                        fetch('{{ url_for('get_progress') }}')
-                        .then(response => response.json())
-                        .then(progress => {
-                            updateProgress(progress);
-                            alert('All comparisons completed!');
-                        });
+                if (data.state && data.state !== 'ready') {
+                    clearComparisonView();
+                    if (data.progress) {
+                        updateProgress(data.progress);
                     } else {
-                        alert(data.error);
+                        updateProgress({ current: 0, total: 0 });
                     }
+                    const toneMap = {
+                        completed: 'success',
+                        no_directory: 'info',
+                        empty: 'warning',
+                        insufficient: 'warning'
+                    };
+                    setComparisonStatus(data.message, toneMap[data.state] || 'info');
+                    setComparisonControlsEnabled(false);
                     return;
                 }
                 console.log('Received image data:', data);
@@ -235,10 +267,15 @@
                 document.getElementById('image1-name').textContent = `Image A: ${decodeURIComponent(data.image1.split('=').pop().split('/').pop())}`;
                 document.getElementById('image2-name').textContent = `Image B: ${decodeURIComponent(data.image2.split('=').pop().split('/').pop())}`;
                 updateProgress(data.progress);
+                setComparisonStatus('');
+                setComparisonControlsEnabled(true);
                 checkContext();
             })
             .catch(error => {
                 console.error('Error loading images:', error);
+                clearComparisonView();
+                setComparisonStatus('Failed to load images for the selected folder.', 'error');
+                setComparisonControlsEnabled(false);
             });
         }
 
@@ -281,6 +318,9 @@
         let excludeDownvoted = false;
         
         function selectWinner(winnerImage) {
+            if (!currentImages.image1 || !currentImages.image2) {
+                return;
+            }
             {% if sound_enabled %}
             playClickSound();
             {% endif %}
@@ -309,6 +349,9 @@
         }
         
         function skipPair() {
+            if (!currentImages.image1 || !currentImages.image2) {
+                return;
+            }
             {% if sound_enabled %}
             playClickSound();
             {% endif %}
@@ -324,6 +367,9 @@
         }
 
         function removeImage(img_path) {
+            if (!img_path) {
+                return;
+            }
             if (exclusion_reasons) {
                 openExclusionModal(img_path);
             } else {
@@ -497,14 +543,19 @@
         loadImages();
         updateRankings();
         loadExclusionReasons();
+        setComparisonControlsEnabled(false);
 
         function selectDirectory(path, autosaveProgressFile) {
+            const params = new URLSearchParams();
+            params.set('path', path);
+            params.set('autosaveFile', autosaveProgressFile || '');
+
             fetch('{{ url_for('set_directory') }}', {
                 method: 'POST',
                 headers: {
                     "Content-Type": "application/x-www-form-urlencoded"
                 },
-                body: "path=" + encodeURIComponent(path) + "&autosaveFile=" + encodeURIComponent(autosaveProgressFile)
+                body: params.toString()
             })
             .then(response => {
                 if (!response.ok) {
@@ -514,44 +565,25 @@
             })
             .then(data => {
                 if (data.success) {                        
-                    alert('Directory selected successfully. Restarting ranking process...');
-                    currentImages = {};
+                    clearComparisonView();
                     document.getElementById('rankingsList').innerHTML = '';
                     document.getElementById('progress-fill').style.width = '0%';
                     document.getElementById('progress-text').textContent = 'Progress: 0 / 0 comparisons';
                     loadImages();
                     updateRankings();
-                    // Update the current directory display
-                    document.getElementById('currentDirectory').textContent = 'Image Directory: ' + data.directory;
                 } else {
                     throw new Error(data.error || 'Unknown error occurred');
                 }
+            })
+            .catch(error => {
+                const message = error.error || error.message || 'Unable to open the selected directory.';
+                alert(message);
             });
         }
         
         document.getElementById('selectDirectoryBtn').addEventListener('click', function() {
             openModal();
         });
-        
-        // Function to load the current directory on page load
-        function loadCurrentDirectory() {
-            fetch('{{ url_for('get_current_directory') }}',)
-            .then(response => response.json())
-            .then(data => {
-                if (data.directory) {
-                    document.getElementById('currentDirectory').textContent = 'Image Directory: ' + data.directory;
-                } else {
-                    document.getElementById('currentDirectory').textContent = 'Image Directory: Not selected';
-                }
-            })
-            .catch(error => {
-                console.error('Error loading current directory:', error);
-                document.getElementById('currentDirectory').textContent = 'Image Directory: Error loading';
-            });
-        }
-        
-        // Call the function when the page loads
-        window.addEventListener('load', loadCurrentDirectory);
         
         document.getElementById('exportRankingsBtn').addEventListener('click', function() {
             fetch('{{ url_for('export_rankings') }}',)

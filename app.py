@@ -9,11 +9,10 @@ import threading
 from threading import Thread
 import time
 from datetime import datetime
-import tkinter as tk
-from tkinter import filedialog
 import logging
-import platform
 import json
+import sys
+import subprocess
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -36,29 +35,134 @@ if exclusion_reasons_file:
     except (FileNotFoundError, json.JSONDecodeError) as e:
         logging.error(f"Error loading exclusion reasons file: {e}")
 
-BASE_DIR = None
 current_directory = None
 
 image_pairs = []
 current_pair_index = 0
 last_shown_image = None
 context_data = None
+SUPPORTED_IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.jfif', '.avif', '.heic', '.heif')
+directory_status = {
+    'state': 'no_directory',
+    'message': 'Select a folder containing at least 2 supported images to begin.',
+    'image_count': 0,
+}
+
 comparisons_since_autosave = 0
 
 
-def resolve_path_within_base_dir(path):
-    if BASE_DIR is None:
-        abort(500, "BASE_DIR not configured")
+def get_default_demo_directory():
+    if os.path.isabs(IMAGE_FOLDER):
+        return IMAGE_FOLDER
+    return os.path.abspath(IMAGE_FOLDER)
 
-    base_abs = os.path.abspath(BASE_DIR)
-    target_abs = os.path.abspath(os.path.join(base_abs, path))
+
+def initialize_default_demo_directory():
+    global current_directory, IMAGE_FOLDER
+
+    if current_directory:
+        return
+
+    default_directory = get_default_demo_directory()
+    if not os.path.isdir(default_directory):
+        return
+
+    IMAGE_FOLDER = default_directory
+    current_directory = default_directory
+    reset_ranking_session()
+    load_context_for_directory(default_directory)
+    initialize_image_pairs()
+
+
+def get_restriction_root():
+    base_dir = os.environ.get('BASE_DIR')
+    if not base_dir:
+        return None
+    return os.path.realpath(os.path.abspath(os.path.expanduser(base_dir)))
+
+
+def get_browse_root():
+    return get_restriction_root() or os.path.expanduser('~')
+
+
+def is_within_root(path, root):
     try:
-        if os.path.commonpath([base_abs, target_abs]) != base_abs:
-            abort(403)
+        return os.path.commonpath([path, root]) == root
     except ValueError:
-        abort(403)
+        return False
 
-    return target_abs
+
+def resolve_user_path(raw_path, fallback_root=None):
+    if raw_path is None:
+        raise ValueError('No directory selected')
+
+    candidate = raw_path.strip()
+    if not candidate:
+        raise ValueError('No directory selected')
+
+    candidate = os.path.expanduser(candidate)
+    if os.path.isabs(candidate):
+        resolved = os.path.realpath(os.path.abspath(candidate))
+    else:
+        base_root = fallback_root or get_browse_root()
+        resolved = os.path.realpath(os.path.abspath(os.path.join(base_root, candidate)))
+
+    restriction_root = get_restriction_root()
+    if restriction_root and not is_within_root(resolved, restriction_root):
+        raise PermissionError(f'Selected path must stay inside BASE_DIR: {restriction_root}')
+
+    return resolved
+
+
+def update_directory_status(image_count, state=None, message=None):
+    global directory_status, current_directory
+
+    if state is None:
+        if image_count == 0:
+            state = 'empty'
+            message = (
+                'No supported images found in the selected folder. '
+                f'Supported formats: {", ".join(ext.lstrip(".") for ext in SUPPORTED_IMAGE_EXTENSIONS)}.'
+            )
+        elif image_count == 1:
+            state = 'insufficient'
+            message = 'Found 1 supported image. Add at least one more image to start ranking.'
+        else:
+            state = 'ready'
+            message = f'Found {image_count} supported images. Ranking is ready.'
+
+    directory_status = {
+        'state': state,
+        'message': message,
+        'image_count': image_count,
+        'directory': current_directory,
+    }
+
+
+def describe_path_access_error(path, error):
+    base_message = f'Cannot access "{path}": {error}.'
+    if sys.platform == 'darwin':
+        return (
+            f'{base_message} On macOS, Python may need explicit permission for Desktop, Documents, or Downloads. '
+            'Grant access to your terminal app in System Settings > Privacy & Security > Files and Folders, then retry.'
+        )
+    return base_message
+
+
+@app.route('/open_macos_privacy_settings', methods=['POST'])
+def open_macos_privacy_settings():
+    if sys.platform != 'darwin':
+        return jsonify({'success': False, 'error': 'This action is only available on macOS.'}), 400
+
+    try:
+        subprocess.run(
+            ['open', 'x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders'],
+            check=True,
+        )
+        return jsonify({'success': True})
+    except Exception as e:
+        app.logger.error(f"Failed to open macOS privacy settings: {e}")
+        return jsonify({'success': False, 'error': 'Failed to open macOS privacy settings.'}), 500
 
 
 def get_exclusions_file_path(autosave_file):
@@ -147,7 +251,7 @@ def get_image_paths(folder, timeout=None, start_time=None, get_progress=False):
     return image_paths, comparison_progress
 
 def is_eligible_image(root, file):
-    if file.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp', '.jfif', '.avif', '.heic', '.heif')):
+    if file.lower().endswith(SUPPORTED_IMAGE_EXTENSIONS):
         image_path = os.path.join(root, file).replace('\\', '/')
         if image_path not in excluded_images:
             return True
@@ -168,19 +272,24 @@ def get_image_counts_in_folders(folders, timeout=0.5):
     for folder in folders:
         image_count = None
         comparison_progress = None
-        if time.time() - start_time < timeout:
-            paths, comparison_progress = get_image_paths(folder, timeout=timeout, start_time=start_time, get_progress=True)
-            image_count = len(paths)
-        else: 
-            timed_out = True
+        try:
+            if time.time() - start_time < timeout:
+                paths, comparison_progress = get_image_paths(folder, timeout=timeout, start_time=start_time, get_progress=True)
+                image_count = len(paths)
+            else: 
+                timed_out = True
+        except OSError:
+            image_count = None
+            comparison_progress = None
         folder_name = os.path.basename(os.path.normpath(folder))
-        results.append({'folder': folder_name, 'image_count': image_count, 'comparison_progress': comparison_progress})
+        results.append({'folder': folder_name, 'path': folder, 'image_count': image_count, 'comparison_progress': comparison_progress})
         total_image_count += image_count or 0
     return results, total_image_count, timed_out
 
 def initialize_image_pairs(a=False):
     global image_pairs, current_pair_index
     image_paths, _ = get_image_paths(IMAGE_FOLDER)
+    update_directory_status(len(image_paths))
     
     if len(image_paths) < 2:
         image_pairs = []
@@ -273,6 +382,7 @@ def import_comparison_history_file(file, append):
 
 @app.route('/')
 def index():
+    initialize_default_demo_directory()
     return render_template('index.html', sound_enabled=SOUND_ENABLED)
 
 def smart_shuffle():
@@ -310,13 +420,32 @@ def smart_shuffle_route():
     
 @app.route('/get_images')
 def get_images():
-    global current_pair_index, last_shown_image, current_directory, image_pairs
+    global current_pair_index, last_shown_image, current_directory, image_pairs, directory_status
     if not current_directory:
-        return jsonify(None), 200
+        return jsonify({
+            'state': 'no_directory',
+            'message': 'Select a folder containing at least 2 supported images to begin.',
+            'image_count': 0,
+        }), 200
+
+    if directory_status['state'] != 'ready':
+        return jsonify({
+            'state': directory_status['state'],
+            'message': directory_status['message'],
+            'image_count': directory_status['image_count'],
+        }), 200
 
     with image_pairs_lock:
         if current_pair_index >= len(image_pairs):
-            return jsonify({'error': 'All comparisons completed in get_images'})
+            completed_pairs = len(elo_ranking.comparison_history)
+            return jsonify({
+                'state': 'completed',
+                'message': 'All comparisons for this folder are complete.',
+                'progress': {
+                    'current': completed_pairs,
+                    'total': completed_pairs
+                }
+            })
         
         img1, img2 = image_pairs[current_pair_index]
         if last_shown_image is not None:
@@ -498,22 +627,31 @@ def set_directory():
     global IMAGE_FOLDER, current_directory, elo_ranking, image_pairs, current_pair_index, comparisons_since_autosave, excluded_images, context_data
     
     try:
-        rel_path = request.form["path"]
-        rel_autosave_path = request.form.get("autosaveFile", "")
+        selected_path = request.form["path"]
+        selected_autosave_path = request.form.get("autosaveFile", "")
 
-        directory = resolve_path_within_base_dir(rel_path)
+        directory = resolve_user_path(selected_path)
 
         if directory:
+            if not os.path.exists(directory):
+                return jsonify({'success': False, 'error': f'Directory does not exist: {directory}'}), 400
+            if not os.path.isdir(directory):
+                return jsonify({'success': False, 'error': f'Not a directory: {directory}'}), 400
+            try:
+                os.listdir(directory)
+            except OSError as e:
+                return jsonify({'success': False, 'error': describe_path_access_error(directory, e)}), 403
+
             IMAGE_FOLDER = directory
             current_directory = directory  # Save the selected directory
             reset_ranking_session()
             load_context_for_directory(directory)
 
             autosave_file = None
-            if rel_autosave_path:
-                autosave_file = resolve_path_within_base_dir(rel_autosave_path)
+            if selected_autosave_path:
+                autosave_file = resolve_user_path(selected_autosave_path)
                 if os.path.exists(autosave_file):
-                    excluded_images = load_exclusions_from_autosave(autosave_file)
+                    excluded_images.update(load_exclusions_from_autosave(autosave_file))
 
             initialize_image_pairs()
 
@@ -521,9 +659,17 @@ def set_directory():
                 with open(autosave_file, 'rb') as file:
                     import_comparison_history_file(file, True)
 
-            return jsonify({'success': True, 'directory': directory})
+            return jsonify({
+                'success': True,
+                'directory': directory,
+                'state': directory_status['state'],
+                'message': directory_status['message'],
+                'image_count': directory_status['image_count'],
+            })
         else:
             return jsonify({'success': False, 'error': 'No directory selected'})
+    except PermissionError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
     except ValueError as e:
         app.logger.error(f"Error in set_directory: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 400
@@ -646,18 +792,43 @@ def clear_excluded_images():
 @app.route('/get_current_directory')
 def get_current_directory():
     global current_directory
-    return jsonify({'directory': current_directory if current_directory else None})
+    return jsonify({
+        'directory': current_directory if current_directory else None,
+        'state': directory_status['state'],
+        'message': directory_status['message'],
+        'image_count': directory_status['image_count'],
+    })
 
 @app.route("/browse_directory")
 def browse_directory():
-    global BASE_DIR
-    if 'BASE_DIR' not in os.environ:
-        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    else:
-        BASE_DIR = os.environ['BASE_DIR']
-    rel_path = request.args.get("path", "")
-    abs_path = resolve_path_within_base_dir(rel_path)
-    all_files = os.listdir(abs_path)
+    browse_root = get_browse_root()
+    requested_path = request.args.get("path", "")
+    try:
+        abs_path = resolve_user_path(requested_path, fallback_root=browse_root) if requested_path else browse_root
+    except PermissionError:
+        abort(403)
+    except ValueError:
+        abs_path = browse_root
+
+    if not os.path.isdir(abs_path):
+        abort(404)
+
+    try:
+        all_files = os.listdir(abs_path)
+    except OSError as e:
+        return render_template(
+            "browse-dir.html",
+            folders=[],
+            current_path=abs_path,
+            parent_path=os.path.dirname(abs_path) if abs_path != os.path.dirname(abs_path) and (not get_restriction_root() or abs_path != get_restriction_root()) else None,
+            images_in_current_folder=None,
+            autosave_progress_file=None,
+            browse_root=browse_root,
+            restriction_root=get_restriction_root(),
+            supported_extensions=', '.join(ext.lstrip('.') for ext in SUPPORTED_IMAGE_EXTENSIONS),
+            error_message=describe_path_access_error(abs_path, e),
+            show_mac_privacy=sys.platform == 'darwin',
+        )
     folders = [
         d for d in all_files
         if os.path.isdir(os.path.join(abs_path, d))
@@ -675,9 +846,14 @@ def browse_directory():
     return render_template(
         "browse-dir.html",
         folders=folders,
-        current_path=rel_path,
+        current_path=abs_path,
+        parent_path=os.path.dirname(abs_path) if abs_path != os.path.dirname(abs_path) and (not get_restriction_root() or abs_path != get_restriction_root()) else None,
         images_in_current_folder=total_image_count,
-        autosave_progress_file=autosave_progress_file
+        autosave_progress_file=autosave_progress_file,
+        browse_root=browse_root,
+        restriction_root=get_restriction_root(),
+        supported_extensions=', '.join(ext.lstrip('.') for ext in SUPPORTED_IMAGE_EXTENSIONS),
+        show_mac_privacy=sys.platform == 'darwin',
     )
 
 
@@ -730,11 +906,6 @@ def get_context():
         abort(404, f"Context not found for {filename} and no default is set.")
 
 if __name__ == '__main__':
-    # Set current_directory to IMAGE_FOLDER (absolute path) on startup
-    if not os.path.isabs(IMAGE_FOLDER):
-        # Convert relative path to absolute
-        current_directory = os.path.abspath(IMAGE_FOLDER)
-    else:
-        current_directory = IMAGE_FOLDER
-    initialize_image_pairs()
+    initialize_default_demo_directory()
+    comparisons_since_autosave = 0
     app.run(debug=False, threaded=True)

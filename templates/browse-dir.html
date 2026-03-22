@@ -45,9 +45,32 @@
       <input id="manualPath" type="text" value="{{ current_path }}" placeholder="/Users/name/Pictures/my-images">
       <button class="main-btn path-btn" onclick="selectManualPath()">Open</button>
     </div>
+    <div class="directory-controls">
+      <div class="search-input-wrap">
+        <span class="material-symbols-rounded">search</span>
+        <input id="directorySearch" type="search" placeholder="Search folders or paths">
+      </div>
+      <label class="directory-control">
+        <span>Show</span>
+        <select id="directoryFilter">
+          <option value="all">All folders</option>
+          <option value="ready">Ready to rank</option>
+          <option value="resume">Resume available</option>
+        </select>
+      </label>
+      <label class="directory-control">
+        <span>Sort</span>
+        <select id="directorySort">
+          <option value="smart">Smart order</option>
+          <option value="progress">Most progress</option>
+          <option value="images">Most images</option>
+          <option value="name">Name</option>
+        </select>
+      </label>
+    </div>
     <div class="directory-list-intro">
       <h5>Subdirectories</h5>
-      <span class="directory-count">{{ folders|length }} shown</span>
+      <span class="directory-count"><span id="directoryCount">{{ folders|length }}</span> shown</span>
     </div>
     {% if error_message %}
       <div class="browser-error">
@@ -61,7 +84,7 @@
   <div class="directory-list-shell">
   <ul class="directory-list">
     {% if parent_path %}
-      <li class="directory-item">
+      <li class="directory-item directory-item-parent" data-parent="true">
         <a class="directory-link directory-link-parent" href="{{ url_for('browse_directory', path=parent_path) }}">
           <span class="directory-leading-icon">
             <span class="material-symbols-rounded">arrow_upward</span>
@@ -81,8 +104,12 @@
       {% set progress_label = 'No ranking progress yet' %}
       {% set progress_class = 'is-idle' %}
       {% set progress_icon = 'schedule' %}
+      {% set is_ready = folder.image_count is not none and folder.image_count >= 2 %}
+      {% set has_resume = folder.has_progress_file %}
       {% if folder.image_count is none %}
         {% set image_label = 'Image count unavailable' %}
+      {% elif folder.image_count == 0 %}
+        {% set image_label = 'No supported images' %}
       {% elif folder.image_count == 1 %}
         {% set image_label = '1 supported image' %}
       {% else %}
@@ -102,8 +129,28 @@
             {% set progress_icon = 'clock_loader_60' %}
           {% endif %}
         {% endif %}
+      {% elif has_resume %}
+        {% set progress_label = 'Resume available' %}
+        {% set progress_class = 'is-active' %}
+        {% set progress_icon = 'history' %}
+      {% elif is_ready %}
+        {% set progress_label = 'Ready to rank' %}
+        {% set progress_class = 'is-ready' %}
+        {% set progress_icon = 'check' %}
+      {% elif folder.image_count is not none %}
+        {% set progress_label = 'Needs 2+ images' %}
       {% endif %}
-      <li class="directory-item">
+      <li
+        class="directory-item"
+        data-folder-item="true"
+        data-name="{{ folder.folder|lower }}"
+        data-path="{{ folder.path|lower }}"
+        data-image-count="{{ folder.image_count if folder.image_count is not none else -1 }}"
+        data-progress="{{ folder.comparison_progress or 0 }}"
+        data-ready="{{ 'true' if is_ready else 'false' }}"
+        data-resume="{{ 'true' if has_resume else 'false' }}"
+        data-smart-order="{{ loop.index0 }}"
+      >
         <a class="directory-link" href="{{ url_for('browse_directory', path=folder.path) }}">
           <span class="directory-leading-icon">
             <span class="material-symbols-rounded">folder</span>
@@ -135,9 +182,72 @@
       <p>No subdirectories found here. Use this directory directly or paste another path above.</p>
     </div>
   {% endif %}
+  <div id="directoryNoResults" class="directory-empty-state" hidden>
+    <span class="material-symbols-rounded">search_off</span>
+    <p>No subdirectories match the current search and filter.</p>
+  </div>
   </div>
 </div>
 <script>
+  const directorySearchInput = document.getElementById('directorySearch')
+  const directoryFilterSelect = document.getElementById('directoryFilter')
+  const directorySortSelect = document.getElementById('directorySort')
+  const directoryCount = document.getElementById('directoryCount')
+  const directoryNoResults = document.getElementById('directoryNoResults')
+  const directoryList = document.querySelector('.directory-list')
+  const directoryItems = Array.from(document.querySelectorAll('[data-folder-item="true"]'))
+
+  function applyDirectoryControls() {
+    const searchTerm = directorySearchInput.value.trim().toLowerCase()
+    const filterValue = directoryFilterSelect.value
+    const sortValue = directorySortSelect.value
+
+    const filteredItems = directoryItems.filter((item) => {
+      const matchesSearch = !searchTerm ||
+        item.dataset.name.includes(searchTerm) ||
+        item.dataset.path.includes(searchTerm)
+
+      let matchesFilter = true
+      if (filterValue === 'ready') {
+        matchesFilter = item.dataset.ready === 'true'
+      } else if (filterValue === 'resume') {
+        matchesFilter = item.dataset.resume === 'true'
+      }
+
+      const visible = matchesSearch && matchesFilter
+      item.hidden = !visible
+      return visible
+    })
+
+    filteredItems.sort((a, b) => {
+      if (sortValue === 'name') {
+        return a.dataset.name.localeCompare(b.dataset.name)
+      }
+      if (sortValue === 'images') {
+        return Number(b.dataset.imageCount) - Number(a.dataset.imageCount) ||
+          a.dataset.name.localeCompare(b.dataset.name)
+      }
+      if (sortValue === 'progress') {
+        return Number(b.dataset.progress) - Number(a.dataset.progress) ||
+          Number(b.dataset.imageCount) - Number(a.dataset.imageCount) ||
+          a.dataset.name.localeCompare(b.dataset.name)
+      }
+      return Number(a.dataset.smartOrder) - Number(b.dataset.smartOrder)
+    })
+
+    filteredItems.forEach((item) => {
+      directoryList.appendChild(item)
+    })
+
+    directoryCount.textContent = String(filteredItems.length)
+    directoryNoResults.hidden = filteredItems.length !== 0 || directoryItems.length === 0
+  }
+
+  directorySearchInput.addEventListener('input', applyDirectoryControls)
+  directoryFilterSelect.addEventListener('change', applyDirectoryControls)
+  directorySortSelect.addEventListener('change', applyDirectoryControls)
+  applyDirectoryControls()
+
   function selectFolder() {
     const path = {{ current_path | tojson }}
     let autosaveProgressFile = {{ (autosave_progress_file or '') | tojson }}

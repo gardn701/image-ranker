@@ -207,6 +207,78 @@ input:disabled + .slider {
     white-space: nowrap;
 }
 
+.directory-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 8px;
+    align-items: end;
+}
+
+.search-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 0 10px;
+    border: 1px solid #cfcfcf;
+    border-radius: 10px;
+    background: #ffffff;
+}
+
+.search-input-wrap .material-symbols-rounded {
+    font-size: 18px;
+    color: #777777;
+    flex: 0 0 auto;
+}
+
+.search-input-wrap input {
+    min-width: 0;
+    width: 100%;
+    padding: 9px 0;
+    border: none;
+    font-size: 0.82rem;
+    background: transparent;
+}
+
+.search-input-wrap input:focus {
+    outline: none;
+}
+
+.search-input-wrap:focus-within {
+    border-color: #111111;
+    box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.08);
+}
+
+.directory-control {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.directory-control span {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #555555;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.directory-control select {
+    min-height: 36px;
+    padding: 8px 30px 8px 10px;
+    border: 1px solid #cfcfcf;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #222222;
+    font-size: 0.8rem;
+}
+
+.directory-control select:focus {
+    outline: none;
+    border-color: #111111;
+    box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.08);
+}
+
 .directory-list-intro {
     display: flex;
     justify-content: space-between;
@@ -374,6 +446,11 @@ input:disabled + .slider {
     color: #9a5200;
 }
 
+.progress-badge.is-ready {
+    background: #eef6ff;
+    color: #1d4ed8;
+}
+
 .progress-badge.is-complete {
     background: #ebf7ee;
     color: #166534;
@@ -439,6 +516,10 @@ input:disabled + .slider {
 
     .path-toolbar label {
         margin-bottom: -2px;
+    }
+
+    .directory-controls {
+        grid-template-columns: 1fr;
     }
 
     .directory-link {

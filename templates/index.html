@@ -169,7 +169,6 @@
     <div id="folderModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-            <h3>Select a directory for image comparison</h3>
             <button class="major-icon-btn" onclick="closeModal()"><span class="material-symbols-rounded">close</span></button>
             </div>
             <div class="modal-body">
@@ -184,7 +183,7 @@
     
     <script>
         let currentImages = {};
-        let max_display = 30;
+        const rankingSectionSize = 10;
         let exclusion_reasons = null;
         let image_to_exclude = null;
         
@@ -446,89 +445,115 @@
             });
         }
         
+        function getRankingSections(rankings) {
+            const totalRankings = rankings.length;
+            if (totalRankings === 0) {
+                return [];
+            }
+
+            const topCount = Math.min(rankingSectionSize, totalRankings);
+            const topEnd = topCount;
+            const bottomStart = Math.max(topEnd, totalRankings - rankingSectionSize);
+            const bottomCount = totalRankings - bottomStart;
+            const middleCount = Math.min(
+                rankingSectionSize,
+                Math.max(0, bottomStart - topEnd)
+            );
+            const middleStart = topEnd + Math.floor((bottomStart - topEnd - middleCount) / 2);
+            const sections = [
+                { label: `Top ${topCount}`, start: 0, end: topEnd }
+            ];
+
+            if (middleCount > 0) {
+                sections.push({
+                    label: `Middle ${middleCount}`,
+                    start: middleStart,
+                    end: middleStart + middleCount
+                });
+            }
+
+            if (bottomCount > 0) {
+                sections.push({
+                    label: `Worst ${bottomCount}`,
+                    start: bottomStart,
+                    end: totalRankings
+                });
+            }
+
+            return sections;
+        }
+
+        function createRankingSectionLabel(label) {
+            const li = document.createElement('li');
+            li.className = 'ranking-section-label';
+            li.textContent = label;
+            return li;
+        }
+
+        function createRankingListItem(item, index) {
+            const li = document.createElement('li');
+            li.innerHTML = `
+                    <span class="rank">#${index + 1}</span>
+                    <div class="image-container">
+                        <img src="{{ url_for('serve_image') }}?path=${item.image}" alt="Ranked image" class="ranking-image">
+                        <div class="image-hover"></div>
+                    </div>
+                    <span class="image-name">${item.image.split('/').pop()}${item.excluded ? ' (Excluded)' : ''}</span>
+                    <span class="elo"><i class="material-symbols-rounded">star</i><span class="elo-value">${Math.round(item.elo)}</span></span>
+                    <span class="uncertainty">± ${Math.round(item.uncertainty)}</span>
+                    <span class="votes">
+                        <span class="up-arrow"><i class="material-symbols-rounded">arrow_upward</i>${item.upvotes}</span>
+                        <span class="down-arrow"><i class="material-symbols-rounded">arrow_downward</i>${item.downvotes}</span>
+                    </span>
+                    <button class="remove-image-btn major-icon-btn" onclick="removeImage('${item.image}')" title="Remove this image.">
+                        <span class="material-symbols-rounded">delete</span>
+                    </button>
+                `;
+            return li;
+        }
+
+        function attachRankingHoverHandlers(rankingsList) {
+            rankingsList.querySelectorAll('.image-container').forEach(container => {
+                const img = container.querySelector('.ranking-image');
+                const hoverDiv = container.querySelector('.image-hover');
+
+                if (!img || !hoverDiv) {
+                    return;
+                }
+
+                img.addEventListener('mouseenter', () => {
+                    hoverDiv.style.backgroundImage = `url(${img.src})`;
+                    hoverDiv.style.display = 'block';
+                });
+
+                img.addEventListener('mouseleave', () => {
+                    hoverDiv.style.display = 'none';
+                });
+            });
+        }
+
         function updateRankings() {
-            display_count = 0
             fetch('{{ url_for('get_rankings') }}',)
             .then(response => response.json())
             .then(data => {
                 const rankingsList = document.getElementById('rankingsList');
-                rankingsList.innerHTML = '';
-                data.forEach((item, index) => {
-                    display_count += 1
-                    const li = document.createElement('li');
-                    let imgHtml;
-                    if (display_count <= max_display) {
-                        imgHtml = `<img src="{{ url_for('serve_image') }}?path=${item.image}" alt="Ranked image" class="ranking-image">`;
-                    } else {
-                        imgHtml = `<div class="empty-image-placeholder">
-                                       <span class="material-symbols-rounded">image</span>
-                                   </div>`;
-                    }
-                    li.innerHTML = `
-                            <span class="rank">#${index + 1}</span>
-                            <div class="image-container">
-                                ${imgHtml}
-                                <div class="image-hover"></div>
-                            </div>
-                            <span class="image-name">${item.image.split('/').pop()}${item.excluded ? ' (Excluded)' : ''}</span>
-                            <span class="elo"><i class="material-symbols-rounded">star</i><span class="elo-value">${Math.round(item.elo)}</span></span>
-                            <span class="uncertainty">± ${Math.round(item.uncertainty)}</span>
-                            <span class="votes">
-                                <span class="up-arrow"><i class="material-symbols-rounded">arrow_upward</i>${item.upvotes}</span>
-                                <span class="down-arrow"><i class="material-symbols-rounded">arrow_downward</i>${item.downvotes}</span>
-                            </span>
-                            <button class="remove-image-btn major-icon-btn" onclick="removeImage('${item.image}')" title="Remove this image.">
-                                <span class="material-symbols-rounded">delete</span>
-                            </button>
-                        `;
-                    rankingsList.appendChild(li);
+                const fragment = document.createDocumentFragment();
 
-                    <!--
-                    // Add Google Ad after every 10th image
-                    //if ((index + 1) % 10 === 0 && index !== data.length - 1) {
-                    //   const adLi = document.createElement('li');
-                    //   adLi.className = 'ad-container';
-                    //    adLi.innerHTML = `
-                    //            <ins class="adsbygoogle"
-                    //                style="display:block"
-                    //                data-ad-format="fluid"
-                    //                data-ad-layout-key="-6t+ed+2i-1n-4w"
-                    //                data-ad-client="ca-pub-8803344579810006"
-                    //                data-ad-slot="4041607466"></ins>
-                    //        `;
-                    //    rankingsList.appendChild(adLi);
-                        
-                    //    // Push the ad to Google
-                    //    if (typeof adsbygoogle !== 'undefined' && adsbygoogle.loaded === false) {
-                    //        (adsbygoogle = window.adsbygoogle || []).push({});
-                    //    }
-                    //}
-                    -->
-                    
-                    // Add event listeners for hover effect
-                    document.querySelectorAll('.image-container').forEach(container => {
-                        const img = container.querySelector('.ranking-image');
-                        const hoverDiv = container.querySelector('.image-hover');
-                        
-                        if (img) {
-                            img.addEventListener('mouseenter', () => {
-                                hoverDiv.style.backgroundImage = `url(${img.src})`;
-                                hoverDiv.style.display = 'block';
-                            });
-                            
-                            img.addEventListener('mouseleave', () => {
-                                hoverDiv.style.display = 'none';
-                            });
-                        }
+                rankingsList.innerHTML = '';
+
+                getRankingSections(data).forEach(section => {
+                    fragment.appendChild(createRankingSectionLabel(section.label));
+                    data.slice(section.start, section.end).forEach((item, offset) => {
+                        fragment.appendChild(createRankingListItem(item, section.start + offset));
                     });
                 });
-                
-                
-                // Ensure ads are loaded after the DOM is updated
+
+                rankingsList.appendChild(fragment);
+                attachRankingHoverHandlers(rankingsList);
+
                 setTimeout(() => {
                     (adsbygoogle = window.adsbygoogle || []).push({});
                 }, 100);
-                
             });
         }
         

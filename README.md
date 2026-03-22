@@ -56,30 +56,6 @@
     - If you want to intentionally restrict browsing to a specific subtree, set `BASE_DIR` (for example `BASE_DIR=/your/path image-ranker`).
 5. Open a web browser and navigate to `http://localhost:5000`.
 
-### Testing
-
-Install the development dependencies and run the test suite:
-
-```bash
-pip install -e ".[dev]"
-pytest
-```
-
-The repository includes a GitHub Actions workflow that runs the pytest suite on every push and pull request across Python 3.11, 3.12, and 3.13.
-
-### Versioning, Changelog, and Releases
-
-- The project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-- The current version is defined in `pyproject.toml`.
-- User-facing changes are tracked in [`CHANGELOG.md`](CHANGELOG.md).
-- Releases are created from Git tags in the format `vX.Y.Z`.
-- The release workflow verifies that the Git tag matches the version in `pyproject.toml`, runs the test suite, and publishes a GitHub Release using the matching changelog entry.
-
-Typical release flow:
-
-1. Update `pyproject.toml` and `CHANGELOG.md`.
-2. Merge the release commit to `main`.
-3. Create and push the tag, for example `git tag v1.0.0 && git push origin v1.0.0`.
 
 ### Configuration
 

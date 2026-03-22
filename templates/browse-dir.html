@@ -4,11 +4,14 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='browse-dir-style.css') }}">
+  <title>Browse Directories</title>
 </head>
 <body>
 <div class="header">
   <div class="directory-summary">
-    <h4>Current Directory: {{ current_path }}</h4>
+    <span class="eyebrow">Directory Selector</span>
+    <h4>Current Directory</h4>
+    <div class="current-path">{{ current_path }}</div>
     {% if restriction_root %}
       <p>Browsing is limited to <code>BASE_DIR</code>: {{ restriction_root }}</p>
     {% else %}
@@ -49,51 +52,91 @@
     {% endif %}
   </div>
 {% endif %}
-<ul>
-  {% if parent_path %}
-    <li>
-      <a href="{{ url_for('browse_directory', path=parent_path) }}">
-        <span class="material-symbols-rounded">keyboard_return</span> Parent
-      </a>
-    </li>
-  {% endif %}
-  {% for folder in folders %}
-    <li class="folder-row">
-      <div>
-        <span class="material-symbols-rounded">folder</span>
-        <a href="{{ url_for('browse_directory', path=folder.path) }}">
-          {{ folder.folder }}
+<div class="directory-list-shell">
+  <div class="directory-list-header">
+    <div>
+      <h5>Subdirectories</h5>
+      <p>Open a folder to keep browsing, or use the current directory action above.</p>
+    </div>
+    <span class="directory-count">{{ folders|length }} shown</span>
+  </div>
+  <ul class="directory-list">
+    {% if parent_path %}
+      <li class="directory-item">
+        <a class="directory-link directory-link-parent" href="{{ url_for('browse_directory', path=parent_path) }}">
+          <span class="directory-leading-icon">
+            <span class="material-symbols-rounded">arrow_upward</span>
+          </span>
+          <div class="directory-main">
+            <div class="directory-text">
+              <span class="directory-name">Parent Directory</span>
+              <span class="directory-subtitle">{{ parent_path }}</span>
+            </div>
+          </div>
+          <span class="directory-action">Open</span>
         </a>
-      </div>
-      <div class="folder-info">
-        {% if folder.image_count is not none %}
-        <span class="material-symbols-rounded">image</span>
-        {{ folder.image_count }} supported images
-        {% endif %}
-      </div>
-      <div>
-        {% if folder.comparison_progress and folder.image_count %}
-          {% set total_combinations = (folder.image_count * (folder.image_count - 1) // 2) %}
-          {% set percent = (folder.comparison_progress / total_combinations * 100) | round | int %}
-          {% set percent = 100 if percent > 100 else percent %}
-          {% if percent >= 100 %}
-            <span class="material-symbols-rounded" style="color: green; vertical-align: middle;">check_circle</span>
+      </li>
+    {% endif %}
+    {% for folder in folders %}
+      {% set progress_value = none %}
+      {% set progress_label = 'No ranking progress yet' %}
+      {% set progress_class = 'is-idle' %}
+      {% set progress_icon = 'schedule' %}
+      {% if folder.image_count is none %}
+        {% set image_label = 'Image count unavailable' %}
+      {% elif folder.image_count == 1 %}
+        {% set image_label = '1 supported image' %}
+      {% else %}
+        {% set image_label = folder.image_count ~ ' supported images' %}
+      {% endif %}
+      {% if folder.comparison_progress and folder.image_count and folder.image_count > 1 %}
+        {% set total_combinations = (folder.image_count * (folder.image_count - 1) // 2) %}
+        {% if total_combinations > 0 %}
+          {% set progress_value = (folder.comparison_progress / total_combinations * 100) | round | int %}
+          {% set progress_value = 100 if progress_value > 100 else progress_value %}
+          {% set progress_label = progress_value ~ '% ranked' %}
+          {% if progress_value >= 100 %}
+            {% set progress_class = 'is-complete' %}
+            {% set progress_icon = 'check_circle' %}
           {% else %}
-            {% set icon = 10 %}
-            {% if percent >= 85 %}{% set icon = 90 %}
-            {% elif percent >= 70 %}{% set icon = 80 %}
-            {% elif percent >= 50 %}{% set icon = 60 %}
-            {% elif percent >= 30 %}{% set icon = 40 %}
-            {% elif percent >= 15 %}{% set icon = 20 %}
-            {% endif %}
-            <span class="material-symbols-rounded" style="vertical-align: middle;">clock_loader_{{ icon }}</span>
+            {% set progress_class = 'is-active' %}
+            {% set progress_icon = 'clock_loader_60' %}
           {% endif %}
-          {{ percent }}% Completed
         {% endif %}
-      </div>
-    </li>
-  {% endfor %}
-</ul>
+      {% endif %}
+      <li class="directory-item">
+        <a class="directory-link" href="{{ url_for('browse_directory', path=folder.path) }}">
+          <span class="directory-leading-icon">
+            <span class="material-symbols-rounded">folder</span>
+          </span>
+          <div class="directory-main">
+            <div class="directory-text">
+              <span class="directory-name">{{ folder.folder }}</span>
+              <span class="directory-subtitle">{{ folder.path }}</span>
+            </div>
+            <div class="directory-meta">
+              <span class="directory-badge">
+                <span class="material-symbols-rounded">image</span>
+                {{ image_label }}
+              </span>
+              <span class="directory-badge progress-badge {{ progress_class }}">
+                <span class="material-symbols-rounded">{{ progress_icon }}</span>
+                {{ progress_label }}
+              </span>
+            </div>
+          </div>
+          <span class="directory-action">Open</span>
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+  {% if not folders and not parent_path %}
+    <div class="directory-empty-state">
+      <span class="material-symbols-rounded">folder_off</span>
+      <p>No subdirectories found here. Use this directory directly or paste another path above.</p>
+    </div>
+  {% endif %}
+</div>
 <script>
   function selectFolder() {
     const path = {{ current_path | tojson }}

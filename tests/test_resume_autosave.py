@@ -35,12 +35,17 @@ class ResumeAutosaveTest(unittest.TestCase):
         with open(exclusions_file, "w") as f:
             json.dump({self.image_paths[2]: "duplicate"}, f)
 
+        skipped_pairs_file = image_ranker_app.get_skipped_pairs_file_path(self.autosave_file)
+        with open(skipped_pairs_file, "w") as f:
+            json.dump([[self.image_paths[0], self.image_paths[2]]], f)
+
         image_ranker_app.BASE_DIR = self.base_dir
         image_ranker_app.IMAGE_FOLDER = "static/images"
         image_ranker_app.current_directory = None
         image_ranker_app.elo_ranking = image_ranker_app.TrueSkillRanking()
         image_ranker_app.excluded_images = {}
         image_ranker_app.image_pairs = []
+        image_ranker_app.skipped_pairs = set()
         image_ranker_app.current_pair_index = 0
         image_ranker_app.last_shown_image = None
         image_ranker_app.context_data = None
@@ -64,6 +69,10 @@ class ResumeAutosaveTest(unittest.TestCase):
         self.assertEqual(
             image_ranker_app.excluded_images,
             {self.image_paths[2]: "duplicate"},
+        )
+        self.assertIn(
+            image_ranker_app.canonicalize_pair((self.image_paths[0], self.image_paths[2])),
+            image_ranker_app.skipped_pairs,
         )
 
         remaining_images = {image for pair in image_ranker_app.image_pairs for image in pair}
@@ -149,6 +158,10 @@ class ResumeAutosaveTest(unittest.TestCase):
             image_ranker_app.excluded_images,
             {self.image_paths[2]: "duplicate"},
         )
+        self.assertIn(
+            image_ranker_app.canonicalize_pair((self.image_paths[0], self.image_paths[2])),
+            image_ranker_app.skipped_pairs,
+        )
         remaining_images = {image for pair in image_ranker_app.image_pairs for image in pair}
         self.assertNotIn(self.image_paths[2], remaining_images)
 
@@ -185,6 +198,33 @@ class ResumeAutosaveTest(unittest.TestCase):
         )
         remaining_images = {image for pair in image_ranker_app.image_pairs for image in pair}
         self.assertNotIn(self.image_paths[2], remaining_images)
+
+    def test_skip_pair_removes_pair_from_queue_and_rebuilds_do_not_restore_it(self):
+        self.client.post(
+            "/set_directory",
+            data={"path": "dataset"},
+        )
+
+        skipped_pair = image_ranker_app.image_pairs[0]
+        image_ranker_app.current_pair_index = 1
+
+        response = self.client.post("/skip_pair")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["success"])
+        self.assertEqual(image_ranker_app.current_pair_index, 0)
+        self.assertNotIn(skipped_pair, image_ranker_app.image_pairs)
+        self.assertIn(
+            image_ranker_app.canonicalize_pair(skipped_pair),
+            image_ranker_app.skipped_pairs,
+        )
+
+        image_ranker_app.initialize_image_pairs()
+
+        self.assertNotIn(
+            image_ranker_app.canonicalize_pair(skipped_pair),
+            {image_ranker_app.canonicalize_pair(pair) for pair in image_ranker_app.image_pairs},
+        )
 
 
 if __name__ == "__main__":

@@ -39,6 +39,7 @@ if exclusion_reasons_file:
 current_directory = None
 
 image_pairs = []
+skipped_pairs = set()
 current_pair_index = 0
 last_shown_image = None
 context_data = None
@@ -171,6 +172,11 @@ def get_exclusions_file_path(autosave_file):
     return os.path.join(os.path.dirname(autosave_file), f'exclusions_autosave_{autosave_date}.json')
 
 
+def get_skipped_pairs_file_path(autosave_file):
+    autosave_date = os.path.basename(autosave_file).split("_")[-1].replace(".csv", "")
+    return os.path.join(os.path.dirname(autosave_file), f'skipped_pairs_autosave_{autosave_date}.json')
+
+
 def load_exclusions_from_autosave(autosave_file):
     exclusions_file_path = get_exclusions_file_path(autosave_file)
     if not os.path.exists(exclusions_file_path):
@@ -184,12 +190,35 @@ def load_exclusions_from_autosave(autosave_file):
         return {}
 
 
+def canonicalize_pair(pair):
+    return tuple(sorted(pair))
+
+
+def load_skipped_pairs_from_autosave(autosave_file):
+    skipped_pairs_file_path = get_skipped_pairs_file_path(autosave_file)
+    if not os.path.exists(skipped_pairs_file_path):
+        return set()
+
+    try:
+        with open(skipped_pairs_file_path, 'r') as f:
+            rows = json.load(f)
+        return {
+            canonicalize_pair((row[0], row[1]))
+            for row in rows
+            if isinstance(row, list) and len(row) == 2 and all(isinstance(value, str) for value in row)
+        }
+    except (OSError, json.JSONDecodeError, TypeError) as e:
+        app.logger.error(f"Failed to load skipped pairs file {skipped_pairs_file_path}: {e}")
+        return set()
+
+
 def reset_ranking_session(load_context=False):
-    global elo_ranking, excluded_images, image_pairs, current_pair_index, comparisons_since_autosave, context_data
+    global elo_ranking, excluded_images, image_pairs, skipped_pairs, current_pair_index, comparisons_since_autosave, context_data
 
     elo_ranking = TrueSkillRanking()
     excluded_images = {}
     image_pairs = []
+    skipped_pairs = set()
     current_pair_index = 0
     comparisons_since_autosave = 0
     if not load_context:
@@ -227,6 +256,24 @@ def maybe_load_current_directory_autosave_exclusions(filename):
     autosave_file = os.path.join(current_directory, basename)
     if os.path.exists(autosave_file):
         excluded_images = load_exclusions_from_autosave(autosave_file)
+        return True
+
+    return False
+
+
+def maybe_load_current_directory_autosave_skipped_pairs(filename):
+    global skipped_pairs
+
+    if not current_directory or not filename:
+        return False
+
+    basename = os.path.basename(filename)
+    if not basename.startswith(comparisons_autosave_prefix):
+        return False
+
+    autosave_file = os.path.join(current_directory, basename)
+    if os.path.exists(autosave_file):
+        skipped_pairs = load_skipped_pairs_from_autosave(autosave_file)
         return True
 
     return False
@@ -384,7 +431,12 @@ def initialize_image_pairs(a=False):
     app.logger.debug(f"Created {len(remaining_pairs)} remaining pairs")
     
     image_pairs = initial_pairs + remaining_pairs
-    image_pairs = [pair for pair in image_pairs if pair[0] not in excluded_images and pair[1] not in excluded_images]
+    image_pairs = [
+        pair for pair in image_pairs
+        if pair[0] not in excluded_images
+        and pair[1] not in excluded_images
+        and canonicalize_pair(pair) not in skipped_pairs
+    ]
     
     app.logger.info(f"Total pairs created: {len(image_pairs)}")
     
@@ -413,19 +465,25 @@ def parse_comparison_history_rows(file):
 
 
 def import_comparison_history_file(file, append):
-    global image_pairs, excluded_images
+    global image_pairs, excluded_images, skipped_pairs
 
     rows = parse_comparison_history_rows(file)
 
     if not append:
         preserved_exclusions = excluded_images.copy()
+        preserved_skipped_pairs = skipped_pairs.copy()
         reset_ranking_session(load_context=True)
         if current_directory:
             restored_autosave_exclusions = maybe_load_current_directory_autosave_exclusions(
                 getattr(file, 'filename', None)
             )
+            restored_autosave_skipped_pairs = maybe_load_current_directory_autosave_skipped_pairs(
+                getattr(file, 'filename', None)
+            )
             if not restored_autosave_exclusions:
                 excluded_images = preserved_exclusions
+            if not restored_autosave_skipped_pairs:
+                skipped_pairs = preserved_skipped_pairs
             initialize_image_pairs()
 
     pairs_to_add = set()
@@ -576,7 +634,7 @@ def serve_image():
         return jsonify({'error': str(e)}), 500
 
 def autosave_rankings():
-    global elo_ranking, current_directory, comparisons_autosave_prefix, excluded_images
+    global elo_ranking, current_directory, comparisons_autosave_prefix, excluded_images, skipped_pairs
     
     if not current_directory:
         app.logger.warning("No image directory selected. Autosave aborted.")
@@ -617,7 +675,15 @@ def autosave_rankings():
     with open(exclusions_filename, 'w') as f:
         json.dump(excluded_images, f)
 
-    app.logger.info(f"Autosave completed. Files saved in {current_directory}: {os.path.basename(rankings_filename)}, {os.path.basename(comparisons_filename)}, {os.path.basename(exclusions_filename)}")
+    skipped_pairs_filename = os.path.join(current_directory, f'skipped_pairs_autosave_{current_date}.json')
+    with open(skipped_pairs_filename, 'w') as f:
+        json.dump([list(pair) for pair in sorted(skipped_pairs)], f)
+
+    app.logger.info(
+        f"Autosave completed. Files saved in {current_directory}: "
+        f"{os.path.basename(rankings_filename)}, {os.path.basename(comparisons_filename)}, "
+        f"{os.path.basename(exclusions_filename)}, {os.path.basename(skipped_pairs_filename)}"
+    )
 
 @app.route('/update_elo', methods=['POST'])
 def update_elo():
@@ -643,18 +709,24 @@ def update_elo():
 
 @app.route('/skip_pair', methods=['POST'])
 def skip_pair():
-    global current_pair_index, image_pairs, current_directory
+    global current_pair_index, image_pairs, current_directory, skipped_pairs
     if not current_directory:
         return jsonify({'error': 'No directory selected'}), 400
 
+    skipped = False
     with image_pairs_lock:
         if current_pair_index > 0 and current_pair_index <= len(image_pairs):
             pair = image_pairs.pop(current_pair_index - 1)
-            image_pairs.append(pair)
+            skipped_pairs.add(canonicalize_pair(pair))
             current_pair_index -= 1
             app.logger.info(f"Skipped pair: {pair}")
-            return jsonify({'success': True})
+            skipped = True
+
+    if not skipped:
         return jsonify({'error': 'No pair to skip'}), 400
+
+    autosave_rankings()
+    return jsonify({'success': True})
 
 @app.route('/remove_image', methods=['POST'])
 def remove_image():
@@ -721,6 +793,7 @@ def set_directory():
                 autosave_file = resolve_user_path(selected_autosave_path)
                 if os.path.exists(autosave_file):
                     excluded_images.update(load_exclusions_from_autosave(autosave_file))
+                    skipped_pairs.update(load_skipped_pairs_from_autosave(autosave_file))
 
             initialize_image_pairs()
 

@@ -440,21 +440,6 @@ input:disabled + .slider {
     color: #ffffff;
 }
 
-.directory-empty-state {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 14px 16px;
-    border: 1px dashed #cfcfcf;
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.7);
-    color: #555555;
-}
-
-.directory-empty-state .material-symbols-rounded {
-    font-size: 1.4rem;
-}
-
 @media (max-width: 768px) {
     body {
         padding: 0;

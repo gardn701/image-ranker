@@ -170,16 +170,6 @@
       </li>
     {% endfor %}
   </ul>
-  {% if not folders and not parent_path %}
-    <div class="directory-empty-state">
-      <span class="material-symbols-rounded">folder_off</span>
-      <p>No subdirectories found here. Use this directory directly or go up to another location.</p>
-    </div>
-  {% endif %}
-  <div id="directoryNoResults" class="directory-empty-state" hidden>
-    <span class="material-symbols-rounded">search_off</span>
-    <p>No subdirectories match the current search and filter.</p>
-  </div>
   </div>
 </div>
 <script>
@@ -187,7 +177,6 @@
   const directoryFilterSelect = document.getElementById('directoryFilter')
   const directorySortSelect = document.getElementById('directorySort')
   const directoryCount = document.getElementById('directoryCount')
-  const directoryNoResults = document.getElementById('directoryNoResults')
   const directoryItems = Array.from(document.querySelectorAll('[data-folder-item="true"]'))
 
   function applyDirectoryControls() {
@@ -212,7 +201,6 @@
     })
 
     directoryCount.textContent = String(filteredItems.length)
-    directoryNoResults.hidden = filteredItems.length !== 0 || directoryItems.length === 0
   }
 
   function updateDirectorySort() {

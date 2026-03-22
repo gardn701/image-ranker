@@ -1,16 +1,19 @@
 <div align="center">
   <h1>Image Ranker</h1>
-  
+
   Maintained by [Quentin Wach](https://www.x.com/QuentinWach).
-  
+
   <p>
+    <a href="https://github.com/QuentinWach/image-ranker/actions/workflows/test.yml">
+      <img src="https://img.shields.io/github/actions/workflow/status/QuentinWach/image-ranker/test.yml?branch=main&label=tests" alt="Tests">
+    </a>
     <a href="https://opensource.org/licenses/MIT">
       <img src="https://img.shields.io/github/license/QuentinWach/image-ranker" alt="License">
     </a>
-    <a href="https://github.com/QuentinWach/1v1-image-ranker/stargazers">
+    <a href="https://github.com/QuentinWach/image-ranker/stargazers">
       <img src="https://img.shields.io/github/stars/QuentinWach/image-ranker" alt="GitHub stars">
     </a>
-    <a href="https://github.com/QuentinWach/1v1-image-ranker/commits/main">
+    <a href="https://github.com/QuentinWach/image-ranker/commits/main">
       <img src="https://img.shields.io/github/last-commit/QuentinWach/image-ranker" alt="Last update">
     </a>
   </p>
@@ -34,20 +37,49 @@
    git clone https://github.com/QuentinWach/image-ranker.git
    cd image-ranker
    ```
-2. Create a virtual environment (optional but recommended):
+2. Create and activate a virtual environment:
    ```
    python -m venv venv
    source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
    ```
-3. Install the required dependencies:
+3. Install the project:
    ```
-   pip install flask trueskill
+   pip install -e .
    ```
-4. Run the Flask app: `python app.py`.
+4. Run the Flask app:
+   ```
+   image-ranker
+   ```
+   You can also use `python app.py` if you prefer.
     - On startup, the app loads the bundled demo images from `static/images` so you can try it immediately.
     - When you open the directory picker, browsing starts in your home folder and you can also paste any absolute path directly in the UI.
-    - If you want to intentionally restrict browsing to a specific subtree, set `BASE_DIR` (e.g. `BASE_DIR=/your/path python app.py`).
+    - If you want to intentionally restrict browsing to a specific subtree, set `BASE_DIR` (for example `BASE_DIR=/your/path image-ranker`).
 5. Open a web browser and navigate to `http://localhost:5000`.
+
+### Testing
+
+Install the development dependencies and run the test suite:
+
+```bash
+pip install -e ".[dev]"
+pytest
+```
+
+The repository includes a GitHub Actions workflow that runs the pytest suite on every push and pull request across Python 3.11, 3.12, and 3.13.
+
+### Versioning, Changelog, and Releases
+
+- The project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+- The current version is defined in `pyproject.toml`.
+- User-facing changes are tracked in [`CHANGELOG.md`](CHANGELOG.md).
+- Releases are created from Git tags in the format `vX.Y.Z`.
+- The release workflow verifies that the Git tag matches the version in `pyproject.toml`, runs the test suite, and publishes a GitHub Release using the matching changelog entry.
+
+Typical release flow:
+
+1. Update `pyproject.toml` and `CHANGELOG.md`.
+2. Merge the release commit to `main`.
+3. Create and push the tag, for example `git tag v0.2.0 && git push origin v0.2.0`.
 
 ### Configuration
 
@@ -60,7 +92,7 @@ You can configure the application using the following environment variables:
 Example:
 
 ```
-AUTOSAVE_FREQUENCY=20 SOUND_ENABLED=false python app.py
+AUTOSAVE_FREQUENCY=20 SOUND_ENABLED=false image-ranker
 ```
 
 ### Exclusion Reasons
@@ -82,7 +114,7 @@ The JSON file should be a simple key-value pair object, where the keys are short
 To use this feature, set the `EXCLUSION_REASONS_FILE` environment variable to the path of your JSON file:
 
 ```
-EXCLUSION_REASONS_FILE=/path/to/your/exclusion_reasons.json python app.py
+EXCLUSION_REASONS_FILE=/path/to/your/exclusion_reasons.json image-ranker
 ```
 
 ### Image Context

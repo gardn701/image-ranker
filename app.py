@@ -51,6 +51,29 @@ directory_status = {
 comparisons_since_autosave = 0
 
 
+def get_default_demo_directory():
+    if os.path.isabs(IMAGE_FOLDER):
+        return IMAGE_FOLDER
+    return os.path.abspath(IMAGE_FOLDER)
+
+
+def initialize_default_demo_directory():
+    global current_directory, IMAGE_FOLDER
+
+    if current_directory:
+        return
+
+    default_directory = get_default_demo_directory()
+    if not os.path.isdir(default_directory):
+        return
+
+    IMAGE_FOLDER = default_directory
+    current_directory = default_directory
+    reset_ranking_session()
+    load_context_for_directory(default_directory)
+    initialize_image_pairs()
+
+
 def get_restriction_root():
     base_dir = os.environ.get('BASE_DIR')
     if not base_dir:
@@ -359,6 +382,7 @@ def import_comparison_history_file(file, append):
 
 @app.route('/')
 def index():
+    initialize_default_demo_directory()
     return render_template('index.html', sound_enabled=SOUND_ENABLED)
 
 def smart_shuffle():
@@ -882,5 +906,6 @@ def get_context():
         abort(404, f"Context not found for {filename} and no default is set.")
 
 if __name__ == '__main__':
+    initialize_default_demo_directory()
     comparisons_since_autosave = 0
     app.run(debug=False, threaded=True)

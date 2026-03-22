@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-03-22
+## [1.0.0] - 2026-03-22
 
 ### Added
 
@@ -20,3 +20,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added the `image-ranker` console entry point for launching the Flask app.
 - Standardized path handling around `BASE_DIR` so app configuration and tests behave consistently.
+- Marked the first formal stable release as `1.0.0`.

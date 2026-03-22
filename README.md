@@ -79,7 +79,7 @@ Typical release flow:
 
 1. Update `pyproject.toml` and `CHANGELOG.md`.
 2. Merge the release commit to `main`.
-3. Create and push the tag, for example `git tag v0.2.0 && git push origin v0.2.0`.
+3. Create and push the tag, for example `git tag v1.0.0 && git push origin v1.0.0`.
 
 ### Configuration
 

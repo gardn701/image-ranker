@@ -357,11 +357,20 @@
             fetch('{{ url_for('skip_pair') }}', {
                 method: 'POST'
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    loadImages();
+            .then(async (response) => {
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Unable to skip this pair.');
                 }
+                return data;
+            })
+            .then(() => {
+                setComparisonStatus('');
+                loadImages();
+            })
+            .catch((error) => {
+                console.error('Error skipping pair:', error);
+                setComparisonStatus(error.message, 'warning');
             });
         }
 

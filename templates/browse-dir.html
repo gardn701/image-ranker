@@ -44,7 +44,9 @@
 {% if error_message %}
   <div class="browser-error">
     <div>{{ error_message }}</div>
-    <button class="main-btn browser-error-btn" onclick="openMacPrivacySettings()">Open macOS Privacy Settings</button>
+    {% if show_mac_privacy %}
+      <button class="main-btn browser-error-btn" onclick="openMacPrivacySettings()">Open macOS Privacy Settings</button>
+    {% endif %}
   </div>
 {% endif %}
 <ul>
@@ -94,8 +96,8 @@
 </ul>
 <script>
   function selectFolder() {
-    const path = "{{ current_path }}"
-    let autosaveProgressFile = "{{ autosave_progress_file or '' }}"
+    const path = {{ current_path | tojson }}
+    let autosaveProgressFile = {{ (autosave_progress_file or '') | tojson }}
     const importToggleCheckbox = document.getElementById('importToggle');
     if (!importToggleCheckbox.checked) {
       autosaveProgressFile = ''

@@ -7,15 +7,6 @@
     <a href="https://github.com/QuentinWach/image-ranker/actions/workflows/test.yml">
       <img src="https://img.shields.io/github/actions/workflow/status/QuentinWach/image-ranker/test.yml?branch=main&label=tests" alt="Tests">
     </a>
-    <a href="https://github.com/QuentinWach/image-ranker/releases">
-      <img src="https://img.shields.io/github/v/release/QuentinWach/image-ranker?sort=semver" alt="Latest release">
-    </a>
-    <a href="https://github.com/QuentinWach/image-ranker/blob/main/CHANGELOG.md">
-      <img src="https://img.shields.io/badge/changelog-Keep%20a%20Changelog-brightgreen" alt="Changelog">
-    </a>
-    <a href="https://github.com/QuentinWach/image-ranker/blob/main/pyproject.toml">
-      <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+">
-    </a>
     <a href="https://opensource.org/licenses/MIT">
       <img src="https://img.shields.io/github/license/QuentinWach/image-ranker" alt="License">
     </a>

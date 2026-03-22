@@ -230,13 +230,16 @@ def maybe_load_current_directory_autosave_exclusions(filename):
 
     return False
 
-def get_image_paths(folder, timeout=None, start_time=None, get_progress=False):
+def get_image_paths(folder, timeout=None, start_time=None, get_progress=False, return_metadata=False):
     global comparisons_autosave_prefix
     image_paths = []
     comparison_progress = 0
+    has_progress_file = False
     for root, dirs, files in os.walk(folder):
         if timeout is not None and start_time is not None:
             if time.time() - start_time > timeout:
+                if return_metadata:
+                    return [], None, {'has_progress_file': False}
                 return [], None # Don't return incomplete list/incorrect progress count
         comparison_progress_file = None
         for file in files:
@@ -246,8 +249,11 @@ def get_image_paths(folder, timeout=None, start_time=None, get_progress=False):
                  (comparison_progress_file is None or file > comparison_progress_file)):
                 comparison_progress_file = file
         if get_progress and comparison_progress_file:
+            has_progress_file = True
             newline_count = count_newlines_in_file(os.path.join(root, comparison_progress_file))
             comparison_progress += max(newline_count - 1, 0) # Ignore header
+    if return_metadata:
+        return image_paths, comparison_progress, {'has_progress_file': has_progress_file}
     return image_paths, comparison_progress
 
 def is_eligible_image(root, file):
@@ -272,19 +278,81 @@ def get_image_counts_in_folders(folders, timeout=0.5):
     for folder in folders:
         image_count = None
         comparison_progress = None
+        has_progress_file = False
         try:
             if time.time() - start_time < timeout:
-                paths, comparison_progress = get_image_paths(folder, timeout=timeout, start_time=start_time, get_progress=True)
+                paths, comparison_progress, metadata = get_image_paths(
+                    folder,
+                    timeout=timeout,
+                    start_time=start_time,
+                    get_progress=True,
+                    return_metadata=True,
+                )
                 image_count = len(paths)
+                has_progress_file = metadata['has_progress_file']
             else: 
                 timed_out = True
         except OSError:
             image_count = None
             comparison_progress = None
+            has_progress_file = False
         folder_name = os.path.basename(os.path.normpath(folder))
-        results.append({'folder': folder_name, 'path': folder, 'image_count': image_count, 'comparison_progress': comparison_progress})
+        results.append({
+            'folder': folder_name,
+            'path': folder,
+            'image_count': image_count,
+            'comparison_progress': comparison_progress,
+            'has_progress_file': has_progress_file,
+        })
         total_image_count += image_count or 0
     return results, total_image_count, timed_out
+
+
+def get_browse_folder_sort_key(folder):
+    image_count = folder['image_count']
+    comparison_progress = folder['comparison_progress'] or 0
+    has_progress_file = folder.get('has_progress_file', False)
+    is_ready = image_count is not None and image_count >= 2
+    has_images = image_count is not None and image_count > 0
+    image_count_value = image_count if image_count is not None else -1
+
+    return (
+        0 if has_progress_file else 1,
+        0 if is_ready else 1,
+        0 if has_images else 1,
+        -comparison_progress,
+        -image_count_value,
+        folder['folder'].lower(),
+    )
+
+
+def sort_browse_folders(folders, sort_mode):
+    if sort_mode == 'name':
+        return sorted(folders, key=lambda folder: folder['folder'].lower())
+
+    if sort_mode == 'images':
+        return sorted(
+            folders,
+            key=lambda folder: (
+                -(folder['image_count'] if folder['image_count'] is not None else -1),
+                -int(bool(folder.get('has_progress_file', False))),
+                -(folder['comparison_progress'] or 0),
+                folder['folder'].lower(),
+            ),
+        )
+
+    if sort_mode == 'progress':
+        return sorted(
+            folders,
+            key=lambda folder: (
+                -int(bool(folder.get('has_progress_file', False))),
+                -(folder['comparison_progress'] or 0),
+                -(folder['image_count'] if folder['image_count'] is not None else -1),
+                folder['folder'].lower(),
+            ),
+        )
+
+    return sorted(folders, key=get_browse_folder_sort_key)
 
 def initialize_image_pairs(a=False):
     global image_pairs, current_pair_index
@@ -803,6 +871,9 @@ def get_current_directory():
 def browse_directory():
     browse_root = get_browse_root()
     requested_path = request.args.get("path", "")
+    sort_mode = request.args.get("sort", "smart").lower()
+    if sort_mode not in {'smart', 'progress', 'images', 'name'}:
+        sort_mode = 'smart'
     try:
         abs_path = resolve_user_path(requested_path, fallback_root=browse_root) if requested_path else browse_root
     except PermissionError:
@@ -828,6 +899,7 @@ def browse_directory():
             supported_extensions=', '.join(ext.lstrip('.') for ext in SUPPORTED_IMAGE_EXTENSIONS),
             error_message=describe_path_access_error(abs_path, e),
             show_mac_privacy=sys.platform == 'darwin',
+            current_sort=sort_mode,
         )
     folders = [
         d for d in all_files
@@ -839,6 +911,7 @@ def browse_directory():
         autosave_progress_file = os.path.join(abs_path, max(autosave_progress_files))
     if len(folders):
         folders, total_image_count, timed_out = get_image_counts_in_folders([os.path.join(abs_path, folder) for folder in folders])
+        folders = sort_browse_folders(folders, sort_mode)
         if timed_out:
             total_image_count = str(total_image_count) + '+'
     else:
@@ -854,6 +927,7 @@ def browse_directory():
         restriction_root=get_restriction_root(),
         supported_extensions=', '.join(ext.lstrip('.') for ext in SUPPORTED_IMAGE_EXTENSIONS),
         show_mac_privacy=sys.platform == 'darwin',
+        current_sort=sort_mode,
     )
 
 

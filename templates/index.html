@@ -50,6 +50,7 @@
                 <span id="image1-name"></span>
                 <span id="image2-name"></span>
             </div>
+            <div id="comparisonStatus" class="comparison-status comparison-status-hidden" aria-live="polite"></div>
             <div class="buttons">
                 <div class="button-group">
                     <div class="action-buttons">
@@ -203,6 +204,34 @@
             document.getElementById('image2').src = '';
             document.getElementById('image1-name').textContent = '';
             document.getElementById('image2-name').textContent = '';
+            document.getElementById('context-image1-btn').style.display = 'none';
+            document.getElementById('context-image2-btn').style.display = 'none';
+        }
+
+        function setComparisonStatus(message, tone = 'info') {
+            const statusEl = document.getElementById('comparisonStatus');
+            if (!message) {
+                statusEl.textContent = '';
+                statusEl.className = 'comparison-status comparison-status-hidden';
+                return;
+            }
+
+            statusEl.textContent = message;
+            statusEl.className = `comparison-status comparison-status-${tone}`;
+        }
+
+        function setComparisonControlsEnabled(enabled) {
+            [
+                'image1-btn',
+                'image2-btn',
+                'remove-image1-btn',
+                'remove-image2-btn',
+                'skip-btn',
+                'context-image1-btn',
+                'context-image2-btn'
+            ].forEach((id) => {
+                document.getElementById(id).disabled = !enabled;
+            });
         }
 
         function loadImages() {
@@ -219,6 +248,14 @@
                     } else {
                         updateProgress({ current: 0, total: 0 });
                     }
+                    const toneMap = {
+                        completed: 'success',
+                        no_directory: 'info',
+                        empty: 'warning',
+                        insufficient: 'warning'
+                    };
+                    setComparisonStatus(data.message, toneMap[data.state] || 'info');
+                    setComparisonControlsEnabled(false);
                     return;
                 }
                 console.log('Received image data:', data);
@@ -230,10 +267,15 @@
                 document.getElementById('image1-name').textContent = `Image A: ${decodeURIComponent(data.image1.split('=').pop().split('/').pop())}`;
                 document.getElementById('image2-name').textContent = `Image B: ${decodeURIComponent(data.image2.split('=').pop().split('/').pop())}`;
                 updateProgress(data.progress);
+                setComparisonStatus('');
+                setComparisonControlsEnabled(true);
                 checkContext();
             })
             .catch(error => {
                 console.error('Error loading images:', error);
+                clearComparisonView();
+                setComparisonStatus('Failed to load images for the selected folder.', 'error');
+                setComparisonControlsEnabled(false);
             });
         }
 
@@ -276,6 +318,9 @@
         let excludeDownvoted = false;
         
         function selectWinner(winnerImage) {
+            if (!currentImages.image1 || !currentImages.image2) {
+                return;
+            }
             {% if sound_enabled %}
             playClickSound();
             {% endif %}
@@ -304,6 +349,9 @@
         }
         
         function skipPair() {
+            if (!currentImages.image1 || !currentImages.image2) {
+                return;
+            }
             {% if sound_enabled %}
             playClickSound();
             {% endif %}
@@ -319,6 +367,9 @@
         }
 
         function removeImage(img_path) {
+            if (!img_path) {
+                return;
+            }
             if (exclusion_reasons) {
                 openExclusionModal(img_path);
             } else {
@@ -518,6 +569,7 @@
         loadImages();
         updateRankings();
         loadExclusionReasons();
+        setComparisonControlsEnabled(false);
 
         function selectDirectory(path, autosaveProgressFile) {
             const params = new URLSearchParams();

@@ -177,6 +177,47 @@ p {
     border-radius: 15px;
 }
 
+.comparison-status {
+    width: 100%;
+    max-width: 760px;
+    text-align: center;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.comparison-status-hidden {
+    display: none;
+}
+
+.comparison-status-info,
+.comparison-status-success,
+.comparison-status-warning,
+.comparison-status-error {
+    display: block;
+}
+
+.comparison-status-info {
+    color: #4f4f4f;
+    background: #f5f5f5;
+}
+
+.comparison-status-success {
+    color: #0f5132;
+    background: #eef9f1;
+}
+
+.comparison-status-warning {
+    color: #7a4f01;
+    background: #fff7e6;
+}
+
+.comparison-status-error {
+    color: #8a1c1c;
+    background: #fff0f0;
+}
+
 /* ============================ BUTTON STYLES ============================ */
 .buttons {
     display: flex;
@@ -200,6 +241,18 @@ button:hover {
     transform: translateY(-3px);
     box-shadow: 0 3px 5px #00000086;
     color: white;
+}
+button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+button:disabled:hover {
+    background-color: #ffffff;
+    color: #000000;
+    box-shadow: none;
+    transform: none;
 }
 button:active {
     transform: scale(0.98);
@@ -694,6 +747,47 @@ p {
     border-radius: 15px;
 }
 
+.comparison-status {
+    width: 100%;
+    max-width: 760px;
+    text-align: center;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.comparison-status-hidden {
+    display: none;
+}
+
+.comparison-status-info,
+.comparison-status-success,
+.comparison-status-warning,
+.comparison-status-error {
+    display: block;
+}
+
+.comparison-status-info {
+    color: #4f4f4f;
+    background: #f5f5f5;
+}
+
+.comparison-status-success {
+    color: #0f5132;
+    background: #eef9f1;
+}
+
+.comparison-status-warning {
+    color: #7a4f01;
+    background: #fff7e6;
+}
+
+.comparison-status-error {
+    color: #8a1c1c;
+    background: #fff0f0;
+}
+
 /* ============================ BUTTON STYLES ============================ */
 .buttons {
     display: flex;
@@ -717,6 +811,18 @@ button:hover {
     transform: translateY(-3px);
     box-shadow: 0 3px 5px #00000086;
     color: white;
+}
+button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+button:disabled:hover {
+    background-color: #ffffff;
+    color: #000000;
+    box-shadow: none;
+    transform: none;
 }
 button:active {
     transform: scale(0.98);

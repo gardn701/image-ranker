@@ -43,12 +43,35 @@ last_shown_image = None
 context_data = None
 SUPPORTED_IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.jfif', '.avif', '.heic', '.heif')
 directory_status = {
-    'state': 'ready',
-    'message': None,
+    'state': 'no_directory',
+    'message': 'Select a folder containing at least 2 supported images to begin.',
     'image_count': 0,
 }
 
 comparisons_since_autosave = 0
+
+
+def get_default_demo_directory():
+    if os.path.isabs(IMAGE_FOLDER):
+        return IMAGE_FOLDER
+    return os.path.abspath(IMAGE_FOLDER)
+
+
+def initialize_default_demo_directory():
+    global current_directory, IMAGE_FOLDER
+
+    if current_directory:
+        return
+
+    default_directory = get_default_demo_directory()
+    if not os.path.isdir(default_directory):
+        return
+
+    IMAGE_FOLDER = default_directory
+    current_directory = default_directory
+    reset_ranking_session()
+    load_context_for_directory(default_directory)
+    initialize_image_pairs()
 
 
 def get_restriction_root():
@@ -359,6 +382,7 @@ def import_comparison_history_file(file, append):
 
 @app.route('/')
 def index():
+    initialize_default_demo_directory()
     return render_template('index.html', sound_enabled=SOUND_ENABLED)
 
 def smart_shuffle():
@@ -803,6 +827,7 @@ def browse_directory():
             restriction_root=get_restriction_root(),
             supported_extensions=', '.join(ext.lstrip('.') for ext in SUPPORTED_IMAGE_EXTENSIONS),
             error_message=describe_path_access_error(abs_path, e),
+            show_mac_privacy=sys.platform == 'darwin',
         )
     folders = [
         d for d in all_files
@@ -828,6 +853,7 @@ def browse_directory():
         browse_root=browse_root,
         restriction_root=get_restriction_root(),
         supported_extensions=', '.join(ext.lstrip('.') for ext in SUPPORTED_IMAGE_EXTENSIONS),
+        show_mac_privacy=sys.platform == 'darwin',
     )
 
 
@@ -880,12 +906,6 @@ def get_context():
         abort(404, f"Context not found for {filename} and no default is set.")
 
 if __name__ == '__main__':
-    # Set current_directory to IMAGE_FOLDER (absolute path) on startup
-    if not os.path.isabs(IMAGE_FOLDER):
-        # Convert relative path to absolute
-        current_directory = os.path.abspath(IMAGE_FOLDER)
-    else:
-        current_directory = IMAGE_FOLDER
-    initialize_image_pairs()
+    initialize_default_demo_directory()
     comparisons_since_autosave = 0
     app.run(debug=False, threaded=True)

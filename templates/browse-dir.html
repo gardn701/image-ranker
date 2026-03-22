@@ -10,23 +10,21 @@
 <div class="browser-layout">
   <div class="browser-top">
     <div class="header">
-      <div class="directory-summary">
-        <div class="browser-title-row">
-          <span class="eyebrow">Directory Selector</span>
+      <div class="header-primary">
+        <div class="current-path-chip">{{ current_path }}</div>
+        <div class="header-meta">
           {% if images_in_current_folder is not none %}
             <span class="top-badge">
               <span class="material-symbols-rounded">image</span>
               {{ images_in_current_folder }} images here
             </span>
           {% endif %}
+          {% if restriction_root %}
+            <span class="top-badge">Restricted to BASE_DIR</span>
+          {% else %}
+            <span class="top-badge">Absolute paths supported</span>
+          {% endif %}
         </div>
-        <h4>Select a directory</h4>
-        {% if restriction_root %}
-          <p>Limited to <code>BASE_DIR</code>: {{ restriction_root }}. Needs at least 2 supported images.</p>
-        {% else %}
-          <p>Browse from home or paste an absolute path. Needs at least 2 supported images.</p>
-        {% endif %}
-        <div class="current-path-chip">{{ current_path }}</div>
       </div>
       <div class="header-actions">
         <button class="main-btn select-folder-btn" onclick="selectFolder()">

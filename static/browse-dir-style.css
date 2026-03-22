@@ -6,8 +6,8 @@ body {
 body {
     font-family: Arial, sans-serif;
     margin: 0;
-    padding: 10px;
-    background: linear-gradient(180deg, #f8f8f8 0%, #f3f3f3 100%);
+    padding: 0;
+    background: #ffffff;
     color: #111111;
     overflow: hidden;
 }
@@ -25,7 +25,6 @@ body {
     height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 8px;
     overflow: hidden;
 }
 
@@ -34,11 +33,9 @@ body {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 12px;
-    border: 1px solid #d9d9d9;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.96);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+    padding: 10px 14px 12px;
+    background: #ffffff;
+    border-bottom: 1px solid #e7e7e7;
 }
 
 .header {
@@ -48,7 +45,7 @@ body {
     gap: 12px;
 }
 
-.directory-summary {
+.header-primary {
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -56,36 +53,22 @@ body {
     flex: 1;
 }
 
-.browser-title-row {
+.header-meta {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
 }
 
-.eyebrow {
-    display: inline-flex;
-    align-items: center;
-    width: fit-content;
-    padding: 3px 8px;
-    border-radius: 999px;
-    background: #111111;
-    color: #ffffff;
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
 .top-badge {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 3px 8px;
+    padding: 2px 8px;
     border-radius: 999px;
-    background: #f1f1f1;
-    color: #333333;
-    font-size: 0.72rem;
+    background: #f5f5f5;
+    color: #444444;
+    font-size: 0.7rem;
     line-height: 1;
 }
 
@@ -93,26 +76,10 @@ body {
     font-size: 15px;
 }
 
-.directory-summary h4 {
-    margin: 0;
-    font-size: 1.05rem;
-    font-weight: 600;
-    line-height: 1.2;
-}
-
-.directory-summary p {
-    margin: 0;
-    color: #555555;
-    font-size: 0.8rem;
-    line-height: 1.35;
-}
-
 .current-path-chip {
-    padding: 8px 10px;
-    border: 1px solid #dddddd;
-    border-radius: 12px;
-    background: #fafafa;
-    font-size: 0.79rem;
+    padding: 2px 0;
+    font-size: 0.84rem;
+    font-weight: 600;
     line-height: 1.2;
     color: #333333;
     white-space: nowrap;
@@ -123,14 +90,14 @@ body {
 .header-actions {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    width: 240px;
+    gap: 6px;
+    width: 220px;
     flex-shrink: 0;
 }
 
 .select-folder-btn {
     width: 100%;
-    min-height: 40px;
+    min-height: 36px;
     gap: 6px;
     text-align: center;
     white-space: nowrap;
@@ -141,10 +108,7 @@ body {
     justify-content: space-between;
     align-items: center;
     gap: 8px;
-    padding: 8px 10px;
-    border: 1px solid #dedede;
-    border-radius: 12px;
-    background: #fafafa;
+    padding: 6px 0 0;
 }
 
 .import-toggle-container.disabled {
@@ -152,8 +116,8 @@ body {
 }
 
 .import-label {
-    font-size: 0.76rem;
-    color: #333333;
+    font-size: 0.72rem;
+    color: #555555;
     text-align: left;
     line-height: 1.25;
 }
@@ -211,10 +175,11 @@ input:disabled + .slider {
     grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 8px;
     align-items: center;
+    padding-top: 2px;
 }
 
 .path-toolbar label {
-    font-size: 0.76rem;
+    font-size: 0.72rem;
     font-weight: 600;
     color: #555555;
     text-transform: uppercase;
@@ -223,11 +188,11 @@ input:disabled + .slider {
 
 .path-toolbar input {
     min-width: 0;
-    padding: 10px 12px;
+    padding: 9px 11px;
     border: 1px solid #cfcfcf;
     border-radius: 10px;
-    font-size: 0.85rem;
-    background: #fafafa;
+    font-size: 0.82rem;
+    background: #ffffff;
 }
 
 .path-toolbar input:focus {
@@ -238,7 +203,7 @@ input:disabled + .slider {
 }
 
 .path-btn {
-    min-height: 40px;
+    min-height: 36px;
     white-space: nowrap;
 }
 
@@ -247,12 +212,15 @@ input:disabled + .slider {
     justify-content: space-between;
     align-items: center;
     gap: 12px;
-    padding: 0 2px;
+    padding: 2px 0 0;
 }
 
 .directory-list-intro h5 {
     margin: 0;
-    font-size: 0.92rem;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #555555;
 }
 
 .browser-error {
@@ -275,7 +243,7 @@ input:disabled + .slider {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding-right: 2px;
+    padding: 10px 14px 14px;
 }
 
 .directory-count {
@@ -304,7 +272,7 @@ input:disabled + .slider {
     padding: 10px 12px;
     border: 1px solid #d9d9d9;
     border-radius: 14px;
-    background: rgba(255, 255, 255, 0.96);
+    background: #ffffff;
     text-decoration: none;
     color: inherit;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
@@ -449,11 +417,11 @@ input:disabled + .slider {
 
 @media (max-width: 768px) {
     body {
-        padding: 8px;
+        padding: 0;
     }
 
     .browser-top {
-        padding: 10px;
+        padding: 10px 12px 12px;
     }
 
     .header {

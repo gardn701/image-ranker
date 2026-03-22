@@ -979,7 +979,12 @@ def get_context():
     else:
         abort(404, f"Context not found for {filename} and no default is set.")
 
-if __name__ == '__main__':
+def main():
     initialize_default_demo_directory()
+    global comparisons_since_autosave
     comparisons_since_autosave = 0
     app.run(debug=False, threaded=True)
+
+
+if __name__ == '__main__':
+    main()

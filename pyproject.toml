@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "image-ranker"
+version = "0.2.0"
+description = "Pairwise image ranking web app powered by TrueSkill and Flask."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE.txt" }
+authors = [
+  { name = "Quentin Wach" },
+]
+dependencies = [
+  "Flask>=3.1,<4",
+  "trueskill>=0.4.5,<0.5",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.4,<9",
+]
+
+[project.urls]
+Homepage = "https://github.com/QuentinWach/image-ranker"
+Changelog = "https://github.com/QuentinWach/image-ranker/blob/main/CHANGELOG.md"
+Issues = "https://github.com/QuentinWach/image-ranker/issues"
+Releases = "https://github.com/QuentinWach/image-ranker/releases"
+
+[project.scripts]
+image-ranker = "app:main"
+
+[tool.setuptools]
+py-modules = ["app", "elo"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

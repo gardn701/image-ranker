@@ -1251,7 +1251,7 @@ button:active {
     background: white;
     width: 80%;
     max-width: 800px;
-    height: 80vh;
+    height: 90vh;
     margin: 5% auto;
     border-radius: 6px;
     display: flex;

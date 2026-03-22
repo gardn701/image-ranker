@@ -56,10 +56,10 @@
       <label class="directory-control">
         <span>Sort</span>
         <select id="directorySort">
-          <option value="smart">Smart order</option>
-          <option value="progress">Most progress</option>
-          <option value="images">Most images</option>
-          <option value="name">Name</option>
+          <option value="smart" {{ 'selected' if current_sort == 'smart' else '' }}>Smart order</option>
+          <option value="progress" {{ 'selected' if current_sort == 'progress' else '' }}>Most progress</option>
+          <option value="images" {{ 'selected' if current_sort == 'images' else '' }}>Most images</option>
+          <option value="name" {{ 'selected' if current_sort == 'name' else '' }}>Name</option>
         </select>
       </label>
     </div>
@@ -80,7 +80,7 @@
   <ul class="directory-list">
     {% if parent_path %}
       <li class="directory-item directory-item-parent" data-parent="true">
-        <a class="directory-link directory-link-parent" href="{{ url_for('browse_directory', path=parent_path) }}">
+        <a class="directory-link directory-link-parent" href="{{ url_for('browse_directory', path=parent_path, sort=current_sort) }}">
           <span class="directory-leading-icon">
             <span class="material-symbols-rounded">arrow_upward</span>
           </span>
@@ -144,9 +144,8 @@
         data-progress="{{ folder.comparison_progress or 0 }}"
         data-ready="{{ 'true' if is_ready else 'false' }}"
         data-resume="{{ 'true' if has_resume else 'false' }}"
-        data-smart-order="{{ loop.index0 }}"
       >
-        <a class="directory-link" href="{{ url_for('browse_directory', path=folder.path) }}">
+        <a class="directory-link" href="{{ url_for('browse_directory', path=folder.path, sort=current_sort) }}">
           <span class="directory-leading-icon">
             <span class="material-symbols-rounded">folder</span>
           </span>
@@ -189,13 +188,11 @@
   const directorySortSelect = document.getElementById('directorySort')
   const directoryCount = document.getElementById('directoryCount')
   const directoryNoResults = document.getElementById('directoryNoResults')
-  const directoryList = document.querySelector('.directory-list')
   const directoryItems = Array.from(document.querySelectorAll('[data-folder-item="true"]'))
 
   function applyDirectoryControls() {
     const searchTerm = directorySearchInput.value.trim().toLowerCase()
     const filterValue = directoryFilterSelect.value
-    const sortValue = directorySortSelect.value
 
     const filteredItems = directoryItems.filter((item) => {
       const matchesSearch = !searchTerm ||
@@ -214,33 +211,19 @@
       return visible
     })
 
-    filteredItems.sort((a, b) => {
-      if (sortValue === 'name') {
-        return a.dataset.name.localeCompare(b.dataset.name)
-      }
-      if (sortValue === 'images') {
-        return Number(b.dataset.imageCount) - Number(a.dataset.imageCount) ||
-          a.dataset.name.localeCompare(b.dataset.name)
-      }
-      if (sortValue === 'progress') {
-        return Number(b.dataset.progress) - Number(a.dataset.progress) ||
-          Number(b.dataset.imageCount) - Number(a.dataset.imageCount) ||
-          a.dataset.name.localeCompare(b.dataset.name)
-      }
-      return Number(a.dataset.smartOrder) - Number(b.dataset.smartOrder)
-    })
-
-    filteredItems.forEach((item) => {
-      directoryList.appendChild(item)
-    })
-
     directoryCount.textContent = String(filteredItems.length)
     directoryNoResults.hidden = filteredItems.length !== 0 || directoryItems.length === 0
   }
 
+  function updateDirectorySort() {
+    const url = new URL(window.location.href)
+    url.searchParams.set('sort', directorySortSelect.value)
+    window.location.replace(url.toString())
+  }
+
   directorySearchInput.addEventListener('input', applyDirectoryControls)
   directoryFilterSelect.addEventListener('change', applyDirectoryControls)
-  directorySortSelect.addEventListener('change', applyDirectoryControls)
+  directorySortSelect.addEventListener('change', updateDirectorySort)
   applyDirectoryControls()
 
   function selectFolder() {

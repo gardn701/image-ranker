@@ -170,43 +170,6 @@ input:disabled + .slider {
     cursor: not-allowed;
 }
 
-.path-toolbar {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 8px;
-    align-items: center;
-    padding-top: 2px;
-}
-
-.path-toolbar label {
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: #555555;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-}
-
-.path-toolbar input {
-    min-width: 0;
-    padding: 9px 11px;
-    border: 1px solid #cfcfcf;
-    border-radius: 10px;
-    font-size: 0.82rem;
-    background: #ffffff;
-}
-
-.path-toolbar input:focus {
-    outline: none;
-    border-color: #111111;
-    box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.08);
-    background: #ffffff;
-}
-
-.path-btn {
-    min-height: 36px;
-    white-space: nowrap;
-}
-
 .directory-controls {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
@@ -508,14 +471,6 @@ input:disabled + .slider {
 
     .header-actions {
         width: 100%;
-    }
-
-    .path-toolbar {
-        grid-template-columns: 1fr;
-    }
-
-    .path-toolbar label {
-        margin-bottom: -2px;
     }
 
     .directory-controls {

@@ -22,7 +22,7 @@
           {% if restriction_root %}
             <span class="top-badge">Restricted to BASE_DIR</span>
           {% else %}
-            <span class="top-badge">Absolute paths supported</span>
+            <span class="top-badge">Browsing starts in your home folder</span>
           {% endif %}
         </div>
       </div>
@@ -39,11 +39,6 @@
           </label>
         </div>
       </div>
-    </div>
-    <div class="path-toolbar">
-      <label for="manualPath">Path</label>
-      <input id="manualPath" type="text" value="{{ current_path }}" placeholder="/Users/name/Pictures/my-images">
-      <button class="main-btn path-btn" onclick="selectManualPath()">Open</button>
     </div>
     <div class="directory-controls">
       <div class="search-input-wrap">
@@ -179,7 +174,7 @@
   {% if not folders and not parent_path %}
     <div class="directory-empty-state">
       <span class="material-symbols-rounded">folder_off</span>
-      <p>No subdirectories found here. Use this directory directly or paste another path above.</p>
+      <p>No subdirectories found here. Use this directory directly or go up to another location.</p>
     </div>
   {% endif %}
   <div id="directoryNoResults" class="directory-empty-state" hidden>
@@ -257,17 +252,6 @@
     }
     window.parent.postMessage(
       { selectedFolder: path, autosaveProgressFile: autosaveProgressFile },
-      "*"
-    )
-  }
-
-  function selectManualPath() {
-    const path = document.getElementById('manualPath').value.trim()
-    if (!path) {
-      return
-    }
-    window.parent.postMessage(
-      { selectedFolder: path, autosaveProgressFile: '' },
       "*"
     )
   }

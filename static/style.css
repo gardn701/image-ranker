@@ -1302,3 +1302,33 @@ button:active {
         border-right-width: 0;
     }
 }
+
+
+#rankingsList .ranking-section-label {
+    display: block;
+    margin: 18px 0 8px;
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+    color: #7a7a7a;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    justify-content: flex-start;
+    position: static;
+}
+
+#rankingsList .ranking-section-label:first-child {
+    margin-top: 0;
+}
+
+#rankingsList .image-container {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+#rankingsList .ranking-image {
+    display: block;
+}

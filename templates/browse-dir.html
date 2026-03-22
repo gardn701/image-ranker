@@ -9,35 +9,17 @@
 <body>
 <div class="browser-layout">
   <div class="browser-top">
-    <div class="header">
-      <div class="header-primary">
-        <div class="current-path-chip">{{ current_path }}</div>
-        <div class="header-meta">
-          {% if images_in_current_folder is not none %}
-            <span class="top-badge">
-              <span class="material-symbols-rounded">image</span>
-              {{ images_in_current_folder }} images here
-            </span>
-          {% endif %}
-          {% if restriction_root %}
-            <span class="top-badge">Restricted to BASE_DIR</span>
-          {% else %}
-            <span class="top-badge">Browsing starts in your home folder</span>
-          {% endif %}
-        </div>
-      </div>
-      <div class="header-actions">
-        <button class="main-btn select-folder-btn" onclick="selectFolder()">
-          <span class="material-symbols-rounded">check_circle</span>
-          Use Current Directory
-        </button>
-        <div class="import-toggle-container {% if disable_import %}disabled{% endif %}">
-          <span class="import-label">Resume from saved comparisons</span>
-          <label class="switch">
-            <input type="checkbox" id="importToggle" {% if not autosave_progress_file %}disabled{% endif %} {{ 'checked' if autosave_progress_file else '' }}>
-            <span class="slider"></span>
-          </label>
-        </div>
+    <div class="directory-actions">
+      <button class="main-btn select-folder-btn" onclick="selectFolder()">
+        <span class="material-symbols-rounded">check_circle</span>
+        Use Current Directory
+      </button>
+      <div class="import-toggle-container {% if disable_import %}disabled{% endif %}">
+        <span class="import-label">Resume from saved comparisons</span>
+        <label class="switch">
+          <input type="checkbox" id="importToggle" {% if not autosave_progress_file %}disabled{% endif %} {{ 'checked' if autosave_progress_file else '' }}>
+          <span class="slider"></span>
+        </label>
       </div>
     </div>
     <div class="directory-controls">
@@ -69,6 +51,7 @@
     </div>
     <div class="directory-list-intro">
       <h5>Subdirectories</h5>
+      <span class="directory-current-path">{{ current_path }}</span>
       <span class="directory-count"><span id="directoryCount">{{ folders|length }}</span> shown</span>
     </div>
     {% if error_message %}

@@ -762,12 +762,14 @@ def skip_pair():
 
 @app.route('/remove_image', methods=['POST'])
 def remove_image():
-    global current_displayed_pair
+    global current_displayed_pair, image_pairs
     image = request.json['del_img']
-    global image_pairs
-    image_pairs = [(img1, img2) for img1, img2 in image_pairs if img1!= image and img2!= image]
-    elo_ranking.remove_image(image)
-    current_displayed_pair = None
+
+    with image_pairs_lock:
+        image_pairs = [(img1, img2) for img1, img2 in image_pairs if img1 != image and img2 != image]
+        elo_ranking.remove_image(image)
+        current_displayed_pair = None
+
     return jsonify({'success': True})
 
 
